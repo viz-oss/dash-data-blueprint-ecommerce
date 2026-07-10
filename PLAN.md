@@ -7,7 +7,7 @@ Tylko nie wiem jak to jeszcze dokładnie zrobić
 2. Analiza finansów
 3. Analiza magazynu
 4. Analiza klientów
-5. Analiza Allegro Ads
+5. Analiza reklam
 6. Analiza konkurencji
 7. Analiza zwrotów i reklamacji
 8. Prognozy AI
@@ -176,7 +176,7 @@ System automatycznie wykrywa:
 - zmiany częstotliwości zakupów,
 - klientów o największym potencjale sprzedażowym.
 
-# 5. Analiza Allegro Ads
+# 5. Analiza reklam
 Ocena skuteczności kampanii reklamowych oraz ich wpływu na sprzedaż i zysk.
 
 ## 5.1 Główne wskaźniki
