@@ -42,7 +42,7 @@ Każdy produkt otrzyma ocenę w skali **1–100 punktów**, która będzie odzwi
 | Średnia ocen klientów | 10% |
 | Współczynnik zwrotów | 10% |
 
-### AI rekomendacje
+Rekomendacje
 Najważniejsze wnioski, rekomendacje co warto zmienić/zrobić
 
 ## 2. Analiza finansów
@@ -63,7 +63,7 @@ W formie bloczków z aktualnymi danymi w danym momencie
 - identyfikację okresów największej i najmniejszej sprzedaży,
 - analizę trendów.
 
-Analiza AI:
+Rekomendacje
 - wzrosty i spadki przychodów względem poprzednich okresów,
 - okresy o najwyższej i najniższej sprzedaży,
 - sezonowe trendy sprzedażowe,
@@ -94,7 +94,7 @@ Dla każdej kategorii prezentowane będą:
 - zmiana względem poprzedniego okresu,
 - trend kosztów w czasie.
 
-Analiza AI
+Rekomendacje
 System automatycznie wykrywa:
 - kategorie kosztów rosnące najszybciej,
 - nietypowe wzrosty wydatków,
@@ -108,7 +108,7 @@ System automatycznie wykrywa:
 - analiza zmian rentowności,
 - wpływ kosztów na końcowy wynik finansowy.
 
-Analiza AI
+Rekomendacje
 System automatycznie wykrywa:
 - spadek lub wzrost rentowności,
 - sytuacje, w których wzrost sprzedaży nie przekłada się na wzrost zysku,
@@ -138,7 +138,7 @@ Lista produktów:
 - których zapas szybko się zmniejsza,
 - zalegających w magazynie przez długi czas.
 
-### 3.3 Analiza AI
+Rekomendacje
 System automatycznie wykrywa:
 - produkty, których zapas wkrótce się wyczerpie,
 - produkty zalegające w magazynie,
@@ -167,7 +167,8 @@ Podział klientów na grupy:
   - liczby złożonych zamówień,
   - częstotliwości zakupów,
   - średniej wartości zamówienia.
-### 4.3 Analiza AI
+  
+Rekomendacje
 System automatycznie wykrywa:
 - najbardziej wartościowych klientów,
 - klientów zagrożonych odejściem,
@@ -193,7 +194,7 @@ W formie bloczków z aktualnymi danymi:
 - ranking kampanii według ROAS,
 - ranking kampanii nierentownych.
 
-### Analiza AI
+Rekomendacje
 System automatycznie wykrywa:
 - kampanie generujące straty,
 - kampanie o najwyższej skuteczności,
@@ -224,7 +225,7 @@ Lista produktów według poziomu konkurencyjności:
 - produkty wymagające poprawy,
 - produkty tracące pozycję na rynku.
 
-### 6.3 Analiza AI
+Rekomendacje
 System automatycznie wykrywa:
 - produkty, których cena jest niekonkurencyjna,
 - konkurentów przejmujących sprzedaż w danej kategorii,
@@ -265,7 +266,7 @@ Monitorowanie jakości produktów i obsługi:
 - produkty z największą liczbą reklamacji,
 - najczęściej zgłaszane problemy
 
-### 7.3 Analiza AI
+Rekomendacje
 System automatycznie wykrywa:
 - produkty generujące największą liczbę zwrotów,
 - produkty o wysokim koszcie obsługi,
@@ -273,7 +274,7 @@ System automatycznie wykrywa:
 - wzrost liczby reklamacji,
 - negatywne trendy wpływające na ocenę sklepu.
 
-# 8. Prognozy AI
+# 8. Prognozy firmy
 Prognozowanie przyszłych wyników sklepu na podstawie danych historycznych.
 
 ## 8.1 Prognozy
