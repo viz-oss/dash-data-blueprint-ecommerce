@@ -1,6 +1,7 @@
-from typing import Optional
-
+from typing import Optional, List, Dict
+ 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
@@ -52,16 +53,16 @@ PRODUCT_DETAILS = {
     "prod_123": {
         "id": "prod_123",
         "name": "sluchawki x200",
-        "price": 129.99,
+        "price": "129.99",
         "cost": 65.00,
         "image_url": "https://example.com/images/prod_123.jpg",
         "overall_score": 92,
         "rankings": {
             "sales": {"position": 2, "value": 480},
             "revenue": {"position": 1, "value": 62000},
-            "margin": {"position": 3, "value": 0.34},
-            "growth": {"position": 2, "value": 0.18},
-            "rating": {"position": 2, "value": 4.6},
+            "margin": {"position": 3, "value": "0.34"},
+            "growth": {"position": 2, "value": "0.18"},
+            "rating": {"position": 2, "value": "4.6"},
         },
         "history": [
             {"date": "2026-06-01", "sales": 12, "revenue": 1500, "margin": 480},
@@ -69,8 +70,8 @@ PRODUCT_DETAILS = {
             {"date": "2026-06-15", "sales": 9, "revenue": 1120, "margin": 360},
             {"date": "2026-06-22", "sales": 18, "revenue": 2240, "margin": 710},
         ],
-        "reviews": {"average": 4.6, "count": 210},
-        "return_rate": 0.04,
+        "reviews": {"average": "4.6", "count": 210},
+        "return_rate": "0.04",
         "recommendations": [
             "marza ponizej sredniej kategorii - rozwaz podniesienie ceny o ok. 5%",
         ],
@@ -78,11 +79,56 @@ PRODUCT_DETAILS = {
 }
 DEFAULT_PRODUCT_DETAIL = PRODUCT_DETAILS["prod_123"]
 
+# Response
+class RankingItem(BaseModel):
+    id: str
+    name: str
+    position: int
+    score: float
+
+class ProductsListResponse(BaseModel):
+    ranking_type: str
+    ranking_description: str
+    products: List[RankingItem]
+ 
+class RankingPosition(BaseModel):
+    position: int
+    value: float
+ 
+class SalesSummary(BaseModel):
+    total_sold: int
+    total_revenue: str
+
+class Reviews(BaseModel):
+    average: float
+    count: int
+ 
+class Rankings(BaseModel):
+    sales: RankingPosition
+    revenue: RankingPosition
+    margin: RankingPosition
+    growth: RankingPosition
+    rating: RankingPosition
+
+class ProductDetailResponse(BaseModel):
+    id: str
+    name: str
+    price: str
+    cost: str
+    stock: int
+    image_url: str
+    overall_score: float
+    rankings: Rankings
+    sales_summary: SalesSummary
+    reviews: Reviews
+    return_rate: float
+    recommendations: List[str]
+
 # GET /api/products/?ranking=main|sales|revenue|margin|growth|rating&limit=10&search=
 # GET /api/products/{product_id}/
 
+@router.get("/", operation_id="list", summary="Rankingi produktow", response_model=ProductsListResponse,)
 
-@router.get("/", operation_id="list", summary="Rankingi produktow")
 def products_list(
     ranking: str = Query("main", description="main|sales|revenue|margin|growth|rating"),
     limit: int = Query(10, ge=1, le=100),
@@ -98,6 +144,6 @@ def products_list(
     }
 
 
-@router.get("/{product_id}/", operation_id="detail", summary="Karta produktu")
+@router.get("/{product_id}/", operation_id="detail", summary="Karta produktu",response_model=ProductDetailResponse)
 def products_detail(product_id: str):
     return PRODUCT_DETAILS.get(product_id, {**DEFAULT_PRODUCT_DETAIL, "id": product_id})
