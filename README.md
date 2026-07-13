@@ -1,4 +1,3 @@
-# dash-data-blueprint-ecommerce
 # Panel Analityczny — API (mock)
 
 Backend FastAPI zwracający zmockowane dane JSON dla wszystkich modułów panelu
