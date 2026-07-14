@@ -1,5 +1,5 @@
-from typing import Optional
-
+from typing import List, Optional, Any
+from pydantic import BaseModel
 from fastapi import APIRouter, Query
 
 router = APIRouter()
@@ -11,8 +11,32 @@ ALERTS = [
     {"id": "alert_4", "type": "marza", "severity": "low", "message": "marza calkowita spadla o 2% w ostatnim tygodniu", "created_at": "2026-07-09T17:45:00Z"},
 ]
 
-
-@router.get("/", operation_id="list", summary="Alerty")
+class Alert(BaseModel):
+    id: str
+    type: str
+    severity: str
+    message: str
+    created_at: str
+ 
+class AlertsResponse(BaseModel):
+    alerts: List[Alert]
+ 
+class ValidationErrorItem(BaseModel):
+    loc: List[Any]
+    msg: str
+    type: str
+ 
+class ValidationErrorResponse(BaseModel):
+    detail: List[ValidationErrorItem]
+ 
+ 
+@router.get(
+    "/",
+    operation_id="list",
+    summary="Alerty",
+    response_model=AlertsResponse,
+    responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
+)
 def alerts_list(
     type: Optional[str] = Query(None, description="magazyn|sprzedaz|zwroty|marza"),
     severity: Optional[str] = Query(None, description="low|medium|high"),
@@ -23,3 +47,4 @@ def alerts_list(
     if severity:
         alerts = [a for a in alerts if a["severity"] == severity]
     return {"alerts": alerts}
+ 
