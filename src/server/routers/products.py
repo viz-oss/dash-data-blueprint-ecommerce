@@ -1,8 +1,7 @@
-from typing import Optional, List, Dict
- 
+from typing import Optional, List
+from enum import Enum
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel
 router = APIRouter()
 
 RANKING_DESCRIPTIONS = {
@@ -80,6 +79,14 @@ PRODUCT_DETAILS = {
 DEFAULT_PRODUCT_DETAIL = PRODUCT_DETAILS["prod_123"]
 
 # Response
+class RankingType(str, Enum):
+    main = "main"
+    sales = "sales"
+    revenue = "revenue"
+    margin = "margin"
+    growth = "growth"
+    rating = "rating"
+
 class RankingItem(BaseModel):
     id: str
     name: str
@@ -124,13 +131,11 @@ class ProductDetailResponse(BaseModel):
     return_rate: float
     recommendations: List[str]
 
-# GET /api/products/?ranking=main|sales|revenue|margin|growth|rating&limit=10&search=
-# GET /api/products/{product_id}/
 
 @router.get("/", operation_id="list", summary="Rankingi produktow", response_model=ProductsListResponse,)
 
 def products_list(
-    ranking: str = Query("main", description="main|sales|revenue|margin|growth|rating"),
+    ranking: RankingType = Query(RankingType.main, description="Typ rankingu produktów"),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
 ):
