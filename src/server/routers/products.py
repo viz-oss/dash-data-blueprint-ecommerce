@@ -148,7 +148,6 @@ def products_list(
         "products": products[:limit],
     }
 
-
-@router.get("/{product_id}/", operation_id="detail", summary="Karta produktu",response_model=ProductDetailResponse)
-def products_detail(product_id: str):
+@router.get("/product/", operation_id="detail", summary="Karta produktu", response_model=ProductDetailResponse)
+def products_detail(product_id: str = Query(..., description="Identyfikator produktu, np. P-1001")):
     return PRODUCT_DETAILS.get(product_id, {**DEFAULT_PRODUCT_DETAIL, "id": product_id})

@@ -148,7 +148,7 @@ def customers_list(segment: SegmentEnum = Query(SegmentEnum.top)):
 
 
 @router.get(
-    "/{customer_id}/",
+    "/customer/",
     operation_id="detail",
     summary="Karta klienta",
     response_model=CustomerDetailResponse,
@@ -157,7 +157,7 @@ def customers_list(segment: SegmentEnum = Query(SegmentEnum.top)):
         422: {"description": "Validation Error", "model": ValidationErrorResponse},
     },
 )
-def customers_detail(customer_id: str):
+def customers_detail(customer_id: str = Query(..., description="Identyfikator klienta, np. C-501"),):
     customer = CUSTOMER_DETAILS.get(customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail=f"nie znaleziono klienta: {customer_id}")

@@ -1,8 +1,7 @@
-from datetime import datetime
+from datetime import datetime, date as date_type
 from enum import Enum
 from typing import Any, List, Optional
-
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, computed_field
 
 router = APIRouter()
@@ -27,7 +26,7 @@ class OrderSummary(BaseModel):
     id: str
     number: str
     status: OrderStatus
-    date: datetime = Field(description="Data odpowiadająca aktualnemu statusowi zamówienia")
+    date: date_type = Field(description="Data odpowiadająca aktualnemu statusowi zamówienia")
     items_count: int
     total: str
 
@@ -42,14 +41,14 @@ class OrderItem(BaseModel):
     @computed_field
     @property
     def subtotal(self) -> str:
-        return round(self.quantity * self.unit_price, 2)
+        return f"{self.quantity * float(self.unit_price):.2f}"
 
 
 class OrderDetail(BaseModel):
     id: str
     number: str
     status: OrderStatus
-    date: datetime
+    date: date_type
     items: List[OrderItem]
     total: str
 
@@ -72,20 +71,20 @@ COUNTS = OrderCounts(new=12, to_ship=8, shipped=20, completed=340, returned=5)
 
 ORDERS_BY_STATUS: dict[str, List[OrderSummary]] = {
     "new": [
-        OrderSummary(id="zam_12345", number="12345", status=OrderStatus.new, date="2026-07-12T13:55:00Z", items_count=3, total="245.00"),
-        OrderSummary(id="zam_12346", number="12346", status=OrderStatus.new, date="2026-07-12T09:10:00Z", items_count=1, total="89.00"),
+        OrderSummary(id="zam_12345", number="12345", status=OrderStatus.new, date="2026-07-12", items_count=3, total="245.00"),
+        OrderSummary(id="zam_12346", number="12346", status=OrderStatus.new, date="2026-07-12", items_count=1, total="89.00"),
     ],
     "to_ship": [
-        OrderSummary(id="zam_12300", number="12300", status=OrderStatus.to_ship, date="2026-07-11T18:20:00Z", items_count=2, total="160.00"),
+        OrderSummary(id="zam_12300", number="12300", status=OrderStatus.to_ship, date="2026-07-11", items_count=2, total="160.00"),
     ],
     "shipped": [
-        OrderSummary(id="zam_12290", number="12290", status=OrderStatus.shipped, date="2026-07-10T11:05:00Z", items_count=4, total="320.00"),
+        OrderSummary(id="zam_12290", number="12290", status=OrderStatus.shipped, date="2026-07-10", items_count=4, total="320.00"),
     ],
     "completed": [
-        OrderSummary(id="zam_12100", number="12100", status=OrderStatus.completed, date="2026-06-28T15:40:00Z", items_count=2, total="180.00"),
+        OrderSummary(id="zam_12100", number="12100", status=OrderStatus.completed, date="2026-06-28", items_count=2, total="180.00"),
     ],
     "returned": [
-        OrderSummary(id="zam_12050", number="12050", status=OrderStatus.returned, date="2026-06-20T10:00:00Z", items_count=1, total="65.00"),
+        OrderSummary(id="zam_12050", number="12050", status=OrderStatus.returned, date="2026-06-20", items_count=1, total="65.00"),
     ],
 }
 
@@ -94,7 +93,7 @@ ORDER_DETAILS: dict[str, OrderDetail] = {
         id="zam_12345",
         number="12345",
         status=OrderStatus.new,
-        date="2026-07-12T13:55:00Z",
+        date="2026-07-12",
         items=[
             OrderItem(product_id="prod_1", name="kubek ceramiczny", image_url="https://example.com/images/prod_1.jpg", quantity=5, unit_price="20.00"),
             OrderItem(product_id="prod_2", name="talerz", image_url="https://example.com/images/prod_2.jpg", quantity=4, unit_price="15.00"),
@@ -104,8 +103,16 @@ ORDER_DETAILS: dict[str, OrderDetail] = {
     ),
 }
 
-# GET /api/orders/?status=&search=
-# GET /api/orders/{order_id}/
+
+def parse_date(value: str, param_name: str) -> date_type:
+    try:
+        return datetime.strptime(value, "%Y.%m.%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Nieprawidłowy format daty w '{param_name}', oczekiwano YYYY.MM.DD",
+        )
+
 
 @router.get(
     "/",
@@ -125,16 +132,36 @@ def orders_list(
         max_length=50,
         description="Wyszukiwanie po numerze zamówienia",
     ),
+    from_: Optional[str] = Query(
+        None, alias="from", description="Data początkowa zakresu, format YYYY.MM.DD"
+    ),
+    to: Optional[str] = Query(
+        None, description="Data końcowa zakresu, format YYYY.MM.DD"
+    ),
 ) -> OrdersListResponse:
+    date_from = parse_date(from_, "from") if from_ else None
+    date_to = parse_date(to, "to") if to else None
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="'from' nie może być późniejsze niż 'to'")
+
+    def in_range(order: OrderSummary) -> bool:
+        if date_from and order.date < date_from:
+            return False
+        if date_to and order.date > date_to:
+            return False
+        return True
+
     if search:
         matched = [o for orders in ORDERS_BY_STATUS.values() for o in orders if search in o.number]
+        matched = [o for o in matched if in_range(o)]
         return OrdersListResponse(counts=COUNTS, status=None, search=search, orders=matched)
 
-    return OrdersListResponse(counts=COUNTS, status=status, search=None, orders=ORDERS_BY_STATUS.get(status.value, []))
+    orders = [o for o in ORDERS_BY_STATUS.get(status.value, []) if in_range(o)]
+    return OrdersListResponse(counts=COUNTS, status=status, search=None, orders=orders)
 
 
 @router.get(
-    "/{order_id}/",
+    "/order/",
     operation_id="detail",
     summary="Szczegóły zamówienia",
     response_model=OrderDetail,
@@ -144,9 +171,24 @@ def orders_list(
     },
 )
 def orders_detail(
-    order_id: str = Path(..., description="Identyfikator zamówienia, np. zam_12345", pattern=r"^zam_\d+$"),
+    order_id: str = Query(..., description="Identyfikator zamówienia, np. zam_12345", pattern=r"^zam_\d+$"),
+    from_: Optional[str] = Query(
+        None, alias="from", description="Data początkowa zakresu, format YYYY.MM.DD"
+    ),
+    to: Optional[str] = Query(
+        None, description="Data końcowa zakresu, format YYYY.MM.DD"
+    ),
 ) -> OrderDetail:
     order = ORDER_DETAILS.get(order_id)
     if order is None:
         raise HTTPException(status_code=404, detail=f"Zamówienie '{order_id}' nie zostało znalezione")
+
+    date_from = parse_date(from_, "from") if from_ else None
+    date_to = parse_date(to, "to") if to else None
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="'from' nie może być późniejsze niż 'to'")
+
+    if (date_from and order.date < date_from) or (date_to and order.date > date_to):
+        raise HTTPException(status_code=404, detail=f"Zamówienie '{order_id}' nie mieści się w podanym zakresie dat")
+
     return order
