@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from typing import List
+from typing import List, Any
 
 router = APIRouter()
 
@@ -190,6 +190,14 @@ class ProfitabilityResponse(BaseModel):
     cost_impact_description: str
     recommendations: List[str]
 
+class ValidationErrorItem(BaseModel):
+    loc: List[Any]
+    msg: str
+    type: str
+
+class ValidationErrorResponse(BaseModel):
+    detail: List[ValidationErrorItem]
+
 # GET /api/analytics/finance/summary/
 # GET /api/analytics/finance/revenue/
 # GET /api/analytics/finance/costs/
@@ -200,7 +208,15 @@ class ProfitabilityResponse(BaseModel):
     operation_id="summary",
     summary="Glowne wskazniki finansowe",
     response_model=FinanceSummaryResponse,
+    responses={
+        422: {
+            "description": "Validation Error",
+            "model": ValidationErrorResponse,
+        }
+    },
 )
+def finance_summary():
+    return SUMMARY
 def finance_summary():
     return SUMMARY
  
@@ -228,6 +244,29 @@ def finance_costs(granularity: str = Query("week", description="day|week|month|y
     operation_id="profitability",
     summary="Rentownosc",
     response_model=ProfitabilityResponse,
+    responses={
+        422: {
+            "description": "Validation Error",
+            "model": ValidationErrorResponse,
+        }
+    },
 )
-def finance_profitability():
-    return PROFITABILITY
+def finance_profitability(
+    granularity: str = Query("week", description="day|week|month|year"),
+    date_from: str = Query(None, description="data poczatkowa zakresu, format YYYY-MM-DD"),
+    date_to: str = Query(None, description="data koncowa zakresu, format YYYY-MM-DD"),
+):
+    chart = PROFITABILITY["chart"]
+ 
+    if date_from:
+        chart = [p for p in chart if p["date"] >= date_from]
+    if date_to:
+        chart = [p for p in chart if p["date"] <= date_to]
+ 
+    return {
+        **PROFITABILITY,
+        "chart": chart,
+        "granularity": granularity,
+        "date_from": date_from or (chart[0]["date"] if chart else ""),
+        "date_to": date_to or (chart[-1]["date"] if chart else ""),
+    }
