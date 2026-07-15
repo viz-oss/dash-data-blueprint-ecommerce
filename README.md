@@ -12,7 +12,7 @@ analitycznego. Bez autoryzacji — projekt przykładowy/deweloperski.
 
 ```bash
 # 1. rozpakuj archiwum i wejdź do katalogu
-cd dashboard-api
+cd dash-data-blueprint-ecommerce
 
 # 2. utwórz środowisko wirtualne
 python3.14 -m venv venv
