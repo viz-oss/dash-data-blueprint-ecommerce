@@ -13,12 +13,12 @@ KPIS = {
 }
 
 PRODUCTS = [
-    {"id": "prod_1", "name": "sluchawki x200", "our_price": "199.00", "competitor_price": "179.00"},
-    {"id": "prod_2", "name": "kabel usb-c 2m", "our_price": "29.00", "competitor_price": "32.00"},
-    {"id": "prod_3", "name": "etui na telefon", "our_price": "49.00", "competitor_price": "45.00"},
-    {"id": "prod_4", "name": "powerbank 10000mah", "our_price": "89.00", "competitor_price": "75.00"},
-    {"id": "prod_5", "name": "ladowarka bezprzewodowa", "our_price": "99.00", "competitor_price": "98.00"},
-    {"id": "prod_6", "name": "mysz bezprzewodowa", "our_price": "59.00", "competitor_price": "62.00"},
+    {"id": "prod_1", "name": "X200 Headphones", "our_price": "199.00", "competitor_price": "179.00"},
+    {"id": "prod_2", "name": "USB-C Cable 2m", "our_price": "29.00", "competitor_price": "32.00"},
+    {"id": "prod_3", "name": "Phone Case", "our_price": "49.00", "competitor_price": "45.00"},
+    {"id": "prod_4", "name": "10000mAh Power Bank", "our_price": "89.00", "competitor_price": "75.00"},
+    {"id": "prod_5", "name": "Wireless Charger", "our_price": "99.00", "competitor_price": "98.00"},
+    {"id": "prod_6", "name": "Wireless Mouse", "our_price": "59.00", "competitor_price": "62.00"},
 ]
 
 PRICE_HISTORY = {
@@ -33,14 +33,14 @@ PRICE_HISTORY = {
 }
 
 SALES_IMPACT = {
-    "prod_1": "sprzedaz spadla o 9% od kiedy konkurencja obnizyla cene o 20 zl",
-    "prod_4": "sprzedaz stabilna, ale marza jest ponizej sredniej przy tej roznicy cen",
+    "prod_1": "Sales dropped by 9% since the competitor lowered the price by 20 PLN.",
+    "prod_4": "Sales remain stable, but the margin is below average with the current price difference.",
 }
 
 RECOMMENDATIONS = [
-    "produkt 'sluchawki x200' jest o 11% drozszy niz konkurencja i traci sprzedaz - rozwaz obnizke ceny",
-    "produkt 'powerbank 10000mah' jest drozszy o ok. 19% - sprawdz czy marza pozwala na korekte ceny",
-    "produkt 'kabel usb-c 2m' jest tanszy niz konkurencja i zyskuje na sprzedazy - dobra pozycja, bez zmian",
+    "Product 'X200 Headphones' is 11% more expensive than the competition and is losing sales - consider reducing the price.",
+    "Product '10000mAh Power Bank' is about 19% more expensive - check whether the margin allows for a price adjustment.",
+    "Product 'USB-C Cable 2m' is cheaper than the competition and is gaining sales - good position, no changes needed.",
 ]
 
 
@@ -61,12 +61,14 @@ def price_status(diff: float) -> PriceStatus:
         return PriceStatus.cheaper
     return PriceStatus.same
 
+
 class CompetitionKPIs(BaseModel):
     avg_competitor_price: str
     price_diff_pct: float
     worse_conditions_count: int
     products_needing_action_count: int
- 
+
+
 class PriceComparisonItem(BaseModel):
     id: str
     name: str
@@ -113,13 +115,13 @@ class ValidationErrorResponse(BaseModel):
 @router.get(
     "/",
     operation_id="competition_list",
-    summary="Konkurencja",
+    summary="Competition",
     response_model=CompetitionResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def competition_list(
-    search: Optional[str] = Query(None, description="szukaj produktu po nazwie w porownaniu cen"),
-    action_threshold_pct: float = Query(10.0, description="prog % powyzej ktorego produkt wymaga reakcji cenowej"),
+    search: Optional[str] = Query(None, description="Search products by name in the price comparison"),
+    action_threshold_pct: float = Query(10.0, description="Percentage threshold above which a product requires a pricing action"),
 ):
     products = PRODUCTS
     if search:
@@ -140,7 +142,7 @@ def competition_list(
                 "diff_pct": diff,
                 "status": status,
                 "price_history": PRICE_HISTORY.get(p["id"], []),
-                "sales_impact": SALES_IMPACT.get(p["id"], "brak istotnego wplywu na sprzedaz"),
+                "sales_impact": SALES_IMPACT.get(p["id"], "No significant impact on sales."),
             })
 
     return {

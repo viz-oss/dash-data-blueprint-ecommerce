@@ -16,31 +16,31 @@ PROFIT_BASE = {"value": 1900.00, "growth_pct": 2.0}
 ORDERS_BASE = {"value": 310, "growth_pct": 4.0}
 
 STOCK_DEPLETION = [
-    {"id": "prod_321", "name": "powerbank 10000mah", "current_stock": 3, "predicted_days_until_out": 6},
-    {"id": "prod_654", "name": "ladowarka bezprzewodowa", "current_stock": 5, "predicted_days_until_out": 9},
-    {"id": "prod_222", "name": "klawiatura mechaniczna", "current_stock": 34, "predicted_days_until_out": 45},
-    {"id": "prod_111", "name": "mysz bezprzewodowa", "current_stock": 60, "predicted_days_until_out": 80},
+    {"id": "prod_321", "name": "10000mAh Power Bank", "current_stock": 3, "predicted_days_until_out": 6},
+    {"id": "prod_654", "name": "Wireless Charger", "current_stock": 5, "predicted_days_until_out": 9},
+    {"id": "prod_222", "name": "Mechanical Keyboard", "current_stock": 34, "predicted_days_until_out": 45},
+    {"id": "prod_111", "name": "Wireless Mouse", "current_stock": 60, "predicted_days_until_out": 80},
 ]
 
 RECOMMENDATIONS = [
-    "prognozowany wzrost sprzedazy w nadchodzacym okresie - przygotuj wieksze zapasy kluczowych produktow",
-    "produkt 'powerbank 10000mah' wyczerpie sie wg prognozy za okolo 6 dni - zloz zamowienie u dostawcy",
-    "zysk rosnie wolniej niz przychod - sprawdz rosnace koszty operacyjne",
+    "Sales are forecast to increase in the upcoming period - prepare higher inventory levels for key products.",
+    "Product '10000mAh Power Bank' is forecast to run out of stock in approximately 6 days - place an order with the supplier.",
+    "Profit is growing more slowly than revenue - review increasing operating costs.",
 ]
 
 
 class Trend(str, Enum):
-    rosnie = "rosnie"
-    spada = "spada"
-    stabilny = "stabilny"
+    increasing = "increasing"
+    decreasing = "decreasing"
+    stable = "stable"
 
 
 def trend_from_growth(growth_pct: float) -> Trend:
     if growth_pct > 0:
-        return Trend.rosnie
+        return Trend.increasing
     if growth_pct < 0:
-        return Trend.spada
-    return Trend.stabilny
+        return Trend.decreasing
+    return Trend.stable
 
 
 def build_chart(base_value: float, growth_pct: float, horizon: int, step_days: int):
@@ -150,14 +150,18 @@ class GranularityEnum(str, Enum):
 @router.get(
     "/",
     operation_id="forecasts_list",
-    summary="Prognozy",
+    summary="Forecasts",
     response_model=ForecastResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def forecast_list(
     granularity: GranularityEnum = Query(GranularityEnum.week, description="day, week, month, year"),
-    horizon: int = Query(4, ge=1, le=52, description="liczba okresow do przodu"),
-    stock_alert_days: int = Query(14, ge=1, description="prog dni ponizej ktorego produkt jest oznaczony jako zagrozony wyczerpaniem"),
+    horizon: int = Query(4, ge=1, le=52, description="Number of future periods to forecast"),
+    stock_alert_days: int = Query(
+        14,
+        ge=1,
+        description="Threshold in days below which a product is marked as at risk of running out of stock",
+    ),
 ):
     step_days = GRANULARITY_DAYS[granularity.value]
 
@@ -203,7 +207,9 @@ def forecast_list(
         "items": [
             {
                 **p,
-                "predicted_out_of_stock_date": (TODAY + timedelta(days=p["predicted_days_until_out"])).isoformat(),
+                "predicted_out_of_stock_date": (
+                    TODAY + timedelta(days=p["predicted_days_until_out"])
+                ).isoformat(),
                 "at_risk": p["predicted_days_until_out"] <= stock_alert_days,
             }
             for p in stock_items

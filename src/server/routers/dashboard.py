@@ -22,13 +22,13 @@ DASHBOARD = {
         {"date": "2026-07-12", "revenue": 4700},
     ],
     "top_recommendations": [
-        "kategoria 'akcesoria kuchenne' generuje najwiecej zwrotow - sprawdz opisy produktow",
-        "marza w module finanse spadla o 4% wzgledem poprzedniego miesiaca",
-        "produkt 'sluchawki x200' ma zapas na 6 dni - uzupelnij magazyn",
+        "The 'Kitchen Accessories' category generates the highest number of returns - review the product descriptions.",
+        "The profit margin in the Finance module has decreased by 4% compared to last month.",
+        "Product 'X200 Headphones' has only 6 days of stock remaining - replenish inventory.",
     ],
 }
 
 
-@router.get("/", operation_id="overview", summary="Dashboard glowny")
+@router.get("/", operation_id="overview", summary="Main Dashboard")
 def dashboard():
     return DASHBOARD

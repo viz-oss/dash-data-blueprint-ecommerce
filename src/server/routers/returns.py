@@ -1,55 +1,53 @@
 from enum import Enum
 from typing import List, Any
-
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 router = APIRouter()
-
 PRODUCT_RETURNS = [
-    {"id": "prod_1", "name": "sluchawki x200", "returns_count": 18, "orders_count": 240, "value_returned": "3200.00"},
-    {"id": "prod_3", "name": "etui na telefon", "returns_count": 25, "orders_count": 180, "value_returned": "1225.00"},
-    {"id": "prod_4", "name": "powerbank 10000mah", "returns_count": 9, "orders_count": 95, "value_returned": "801.00"},
-    {"id": "prod_5", "name": "ladowarka bezprzewodowa", "returns_count": 6, "orders_count": 150, "value_returned": "594.00"},
-    {"id": "prod_6", "name": "mysz bezprzewodowa", "returns_count": 4, "orders_count": 300, "value_returned": "236.00"},
+    {"id": "prod_1", "name": "Headphones X200", "returns_count": 18, "orders_count": 240, "value_returned": "3200.00"},
+    {"id": "prod_3", "name": "Phone Case", "returns_count": 25, "orders_count": 180, "value_returned": "1225.00"},
+    {"id": "prod_4", "name": "10000mAh Power Bank", "returns_count": 9, "orders_count": 95, "value_returned": "801.00"},
+    {"id": "prod_5", "name": "Wireless Charger", "returns_count": 6, "orders_count": 150, "value_returned": "594.00"},
+    {"id": "prod_6", "name": "Wireless Mouse", "returns_count": 4, "orders_count": 300, "value_returned": "236.00"},
 ]
 
 RETURN_REASON_COUNTS = {
-    "niezgodnosc_z_opisem": 22,
-    "niewlasciwy_rozmiar": 15,
-    "uszkodzenie_produktu": 12,
-    "problem_z_jakoscia": 8,
-    "zmiana_decyzji": 5,
+    "not_as_described": 22,
+    "wrong_size": 15,
+    "damaged_product": 12,
+    "quality_issue": 8,
+    "changed_mind": 5,
 }
 
 COMPLAINTS_BY_PRODUCT = [
-    {"id": "prod_3", "name": "etui na telefon", "complaints_count": 14},
-    {"id": "prod_1", "name": "sluchawki x200", "complaints_count": 10},
-    {"id": "prod_7", "name": "kamera sportowa", "complaints_count": 6},
-    {"id": "prod_5", "name": "ladowarka bezprzewodowa", "complaints_count": 3},
+    {"id": "prod_3", "name": "Phone Case", "complaints_count": 14},
+    {"id": "prod_1", "name": "Headphones X200", "complaints_count": 10},
+    {"id": "prod_7", "name": "Action Camera", "complaints_count": 6},
+    {"id": "prod_5", "name": "Wireless Charger", "complaints_count": 3},
 ]
 
 COMMON_ISSUES = [
-    {"issue": "produkt niezgodny z opisem na stronie", "count": 14},
-    {"issue": "wada fabryczna lub uszkodzenie przy dostawie", "count": 11},
-    {"issue": "produkt dziala niezgodnie z oczekiwaniami", "count": 8},
-    {"issue": "opoznienie w wymianie lub naprawie", "count": 5},
+    {"issue": "product does not match the website description", "count": 14},
+    {"issue": "manufacturing defect or shipping damage", "count": 11},
+    {"issue": "product does not perform as expected", "count": 8},
+    {"issue": "delay in replacement or repair", "count": 5},
 ]
 
 RECOMMENDATIONS = [
-    "produkt 'etui na telefon' ma najwyzszy wspolczynnik zwrotow - sprawdz zdjecia i opis produktu",
-    "najczestszy powod zwrotow to niezgodnosc z opisem - zweryfikuj tresci ofert dla produktow z wysokim wspolczynnikiem zwrotow",
-    "produkt 'etui na telefon' generuje tez najwiecej reklamacji - priorytetowo sprawdz jakosc dostawcy",
+    "Product 'Phone Case' has the highest return rate - review the product photos and description.",
+    "The most common return reason is 'not as described' - verify product listings with high return rates.",
+    "Product 'Phone Case' also generates the most complaints - prioritize checking supplier quality.",
 ]
 
 
 class ReturnReason(str, Enum):
-    niezgodnosc_z_opisem = "niezgodnosc_z_opisem"
-    niewlasciwy_rozmiar = "niewlasciwy_rozmiar"
-    uszkodzenie_produktu = "uszkodzenie_produktu"
-    problem_z_jakoscia = "problem_z_jakoscia"
-    zmiana_decyzji = "zmiana_decyzji"
-    inne = "inne"
+    not_as_described = "not_as_described"
+    wrong_size = "wrong_size"
+    damaged_product = "damaged_product"
+    quality_issue = "quality_issue"
+    changed_mind = "changed_mind"
+    other = "other"
 
 
 class ReturnsKPIs(BaseModel):
@@ -109,12 +107,12 @@ class ValidationErrorResponse(BaseModel):
 @router.get(
     "/",
     operation_id="returns_list",
-    summary="Zwroty i reklamacje",
+    summary="Returns and Complaints",
     response_model=ReturnsResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def returns_list(
-    limit: int = Query(5, ge=1, le=20, description="ile pozycji pokazac w kazdym rankingu"),
+    limit: int = Query(5, ge=1, le=20, description="Number of items to display in each ranking"),
 ):
     enriched = [
         {**p, "return_rate_pct": round(p["returns_count"] / p["orders_count"] * 100, 1)}
@@ -131,11 +129,19 @@ def returns_list(
 
     total_reasons = sum(RETURN_REASON_COUNTS.values())
     return_reasons = [
-        {"reason": reason, "count": count, "share_pct": round(count / total_reasons * 100, 1)}
+        {
+            "reason": reason,
+            "count": count,
+            "share_pct": round(count / total_reasons * 100, 1),
+        }
         for reason, count in RETURN_REASON_COUNTS.items()
     ]
 
-    top_by_complaints = sorted(COMPLAINTS_BY_PRODUCT, key=lambda c: c["complaints_count"], reverse=True)[:limit]
+    top_by_complaints = sorted(
+        COMPLAINTS_BY_PRODUCT,
+        key=lambda c: c["complaints_count"],
+        reverse=True,
+    )[:limit]
 
     kpis = {
         "total_returns": total_returns,

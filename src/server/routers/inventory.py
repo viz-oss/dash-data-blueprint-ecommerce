@@ -12,45 +12,88 @@ KPIS = {
 }
 
 SECTION_LABELS = {
-    "aktywne-oferty": "Aktywne oferty",
-    "niski-stan": "Niski stan magazynowy",
-    "braki-w-magazynie": "Braki w magazynie",
-    "szybko-sie-koncza": "Szybko się wyprzedają",
-    "zalegajace-produkty": "Zalegające produkty",
+    "active-offers": "Active Offers",
+    "low-stock": "Low Stock",
+    "out-of-stock": "Out of Stock",
+    "fast-selling": "Fast Selling",
+    "stale-products": "Stale Products",
 }
 
 PRODUCTS = {
-    "aktywne-oferty": [
-        {"id": "prod_123", "name": "sluchawki x200", "stock": 84, "status": "ok"},
-        {"id": "prod_456", "name": "kabel usb-c 2m", "stock": 210, "status": "ok"},
-        {"id": "prod_789", "name": "etui na telefon", "stock": 0, "status": "unavailable"},
-        {"id": "prod_111", "name": "mysz bezprzewodowa", "stock": 60, "status": "ok"},
-        {"id": "prod_222", "name": "klawiatura mechaniczna", "stock": 34, "status": "ok"},
-        {"id": "prod_333", "name": "podkładka pod mysz", "stock": 120, "status": "ok"},
-        {"id": "prod_444", "name": "hub usb-c 6w1", "stock": 27, "status": "ok"},
+    "active-offers": [
+        {"id": "prod_123", "name": "X200 Headphones", "stock": 84, "status": "ok"},
+        {"id": "prod_456", "name": "USB-C Cable 2m", "stock": 210, "status": "ok"},
+        {"id": "prod_789", "name": "Phone Case", "stock": 0, "status": "unavailable"},
+        {"id": "prod_111", "name": "Wireless Mouse", "stock": 60, "status": "ok"},
+        {"id": "prod_222", "name": "Mechanical Keyboard", "stock": 34, "status": "ok"},
+        {"id": "prod_333", "name": "Mouse Pad", "stock": 120, "status": "ok"},
+        {"id": "prod_444", "name": "USB-C 6-in-1 Hub", "stock": 27, "status": "ok"},
     ],
-    "niski-stan": [
-        {"id": "prod_321", "name": "powerbank 10000mah", "stock": 3, "status": "low_stock", "days_until_out": 6},
-        {"id": "prod_654", "name": "ladowarka bezprzewodowa", "stock": 5, "status": "low_stock", "days_until_out": 9},
+    "low-stock": [
+        {
+            "id": "prod_321",
+            "name": "10000mAh Power Bank",
+            "stock": 3,
+            "status": "low_stock",
+            "days_until_out": 6,
+        },
+        {
+            "id": "prod_654",
+            "name": "Wireless Charger",
+            "stock": 5,
+            "status": "low_stock",
+            "days_until_out": 9,
+        },
     ],
-    "braki-w-magazynie": [
-        {"id": "prod_789", "name": "etui na telefon", "stock": 0, "status": "unavailable", "days_since_out": 12},
+    "out-of-stock": [
+        {
+            "id": "prod_789",
+            "name": "Phone Case",
+            "stock": 0,
+            "status": "unavailable",
+            "days_since_out": 12,
+        },
     ],
-    "szybko-sie-koncza": [
-        {"id": "prod_321", "name": "powerbank 10000mah", "stock": 3, "status": "low_stock", "days_until_out": 6, "sales_velocity": "wysoka"},
-        {"id": "prod_654", "name": "ladowarka bezprzewodowa", "stock": 5, "status": "low_stock", "days_until_out": 9, "sales_velocity": "srednia"},
+    "fast-selling": [
+        {
+            "id": "prod_321",
+            "name": "10000mAh Power Bank",
+            "stock": 3,
+            "status": "low_stock",
+            "days_until_out": 6,
+            "sales_velocity": "high",
+        },
+        {
+            "id": "prod_654",
+            "name": "Wireless Charger",
+            "stock": 5,
+            "status": "low_stock",
+            "days_until_out": 9,
+            "sales_velocity": "medium",
+        },
     ],
-    "zalegajace-produkty": [
-        {"id": "prod_999", "name": "stary model sluchawek", "stock": 45, "status": "stale", "days_without_sale": 60},
-        {"id": "prod_888", "name": "etui rocznika 2023", "stock": 30, "status": "stale", "days_without_sale": 45},
+    "stale-products": [
+        {
+            "id": "prod_999",
+            "name": "Old Headphones Model",
+            "stock": 45,
+            "status": "stale",
+            "days_without_sale": 60,
+        },
+        {
+            "id": "prod_888",
+            "name": "2023 Phone Case",
+            "stock": 30,
+            "status": "stale",
+            "days_without_sale": 45,
+        },
     ],
 }
 
 RECOMMENDATIONS = [
-    "produkt 'powerbank 10000mah' wyczerpie sie za ok. 6 dni - zloz zamowienie u dostawcy",
-    "produkt 'etui na telefon' zalega jako niedostepny od 12 dni",
+    "Product '10000mAh Power Bank' will run out of stock in approximately 6 days - place an order with the supplier.",
+    "Product 'Phone Case' has been out of stock for 12 days.",
 ]
-
 
 class Product(BaseModel):
     id: str

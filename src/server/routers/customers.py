@@ -2,6 +2,7 @@ from enum import Enum
 from typing import List, Optional, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+
 router = APIRouter()
 
 KPIS = {
@@ -13,19 +14,19 @@ KPIS = {
 
 SEGMENTS = {
     "new": [
-        {"id": "cust_10", "name": "klient a.k.", "total_spent": "145.00", "orders": 1, "frequency_days": None},
-        {"id": "cust_11", "name": "klient m.w.", "total_spent": "89.00", "orders": 1, "frequency_days": None},
+        {"id": "cust_10", "name": "Customer A.K.", "total_spent": "145.00", "orders": 1, "frequency_days": None},
+        {"id": "cust_11", "name": "Customer M.W.", "total_spent": "89.00", "orders": 1, "frequency_days": None},
     ],
     "top": [
-        {"id": "cust_1", "name": "klient r.k.", "total_spent": "4200.00", "orders": 12, "frequency_days": 18},
-        {"id": "cust_2", "name": "klient t.b.", "total_spent": "3100.00", "orders": 9, "frequency_days": 21},
+        {"id": "cust_1", "name": "Customer R.K.", "total_spent": "4200.00", "orders": 12, "frequency_days": 18},
+        {"id": "cust_2", "name": "Customer T.B.", "total_spent": "3100.00", "orders": 9, "frequency_days": 21},
     ],
 }
 
 CUSTOMER_DETAILS = {
     "cust_1": {
         "id": "cust_1",
-        "name": "klient r.k.",
+        "name": "Customer R.K.",
         "first_purchase_date": "2025-01-12",
         "orders_count": 12,
         "total_spent": "4200.00",
@@ -38,7 +39,7 @@ CUSTOMER_DETAILS = {
     },
     "cust_2": {
         "id": "cust_2",
-        "name": "klient t.b.",
+        "name": "Customer T.B.",
         "first_purchase_date": "2025-03-04",
         "orders_count": 9,
         "total_spent": "3100.00",
@@ -50,7 +51,7 @@ CUSTOMER_DETAILS = {
     },
     "cust_10": {
         "id": "cust_10",
-        "name": "klient a.k.",
+        "name": "Customer A.K.",
         "first_purchase_date": "2026-06-28",
         "orders_count": 1,
         "total_spent": "145.00",
@@ -61,7 +62,7 @@ CUSTOMER_DETAILS = {
     },
     "cust_11": {
         "id": "cust_11",
-        "name": "klient m.w.",
+        "name": "Customer M.W.",
         "first_purchase_date": "2026-07-01",
         "orders_count": 1,
         "total_spent": "89.00",
@@ -73,8 +74,8 @@ CUSTOMER_DETAILS = {
 }
 
 RECOMMENDATIONS = [
-    "klient 'klient p.s.' nie skladal zamowienia od 34 dni - rozwaz przypomnienie lub rabat",
-    "nowi klienci ('klient a.k.', 'klient m.w.') - rozwaz wyslanie kodu powitalnego na kolejne zakupy",
+    "Customer 'Customer P.S.' has not placed an order for 34 days - consider sending a reminder or a discount.",
+    "New customers ('Customer A.K.', 'Customer M.W.') - consider sending a welcome discount code for their next purchase.",
 ]
 
 
@@ -91,11 +92,13 @@ class CustomerSummary(BaseModel):
     frequency_days: Optional[int] = None
     avg_order_value: str
 
+
 class Kpis(BaseModel):
     total: int
     new_this_month: int
     avg_orders_per_customer: float
     avg_rating: float
+
 
 class CustomersListResponse(BaseModel):
     kpis: Kpis
@@ -121,18 +124,21 @@ class CustomerDetailResponse(BaseModel):
     frequency_days: Optional[int] = None
     orders: List[Order]
 
+
 class ValidationErrorItem(BaseModel):
     loc: List[Any]
     msg: str
     type: str
 
+
 class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
+
 
 @router.get(
     "/",
     operation_id="customers_list",
-    summary="Klienci statystyki",
+    summary="Customer Statistics",
     response_model=CustomersListResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
@@ -144,22 +150,29 @@ def customers_list(segment: SegmentEnum = Query(SegmentEnum.top)):
     ]
     if segment == SegmentEnum.top:
         enriched.sort(key=lambda c: float(c["total_spent"]), reverse=True)
-    return {"kpis": KPIS, "segment": segment, "customers": enriched, "recommendations": RECOMMENDATIONS}
+    return {
+        "kpis": KPIS,
+        "segment": segment,
+        "customers": enriched,
+        "recommendations": RECOMMENDATIONS,
+    }
 
 
 @router.get(
     "/customer/",
     operation_id="customers_detail",
-    summary="Karta klienta",
+    summary="Customer Profile",
     response_model=CustomerDetailResponse,
     responses={
-        404: {"description": "Nie znaleziono klienta"},
+        404: {"description": "Customer not found"},
         422: {"description": "Validation Error", "model": ValidationErrorResponse},
     },
 )
-def customers_detail(customer_id: str = Query(..., description="Identyfikator klienta, np. C-501"),):
+def customers_detail(
+    customer_id: str = Query(..., description="Customer identifier, e.g. C-501"),
+):
     customer = CUSTOMER_DETAILS.get(customer_id)
     if not customer:
-        raise HTTPException(status_code=404, detail=f"nie znaleziono klienta: {customer_id}")
+        raise HTTPException(status_code=404, detail=f"Customer not found: {customer_id}")
     avg_order_value = f"{float(customer['total_spent']) / customer['orders_count']:.2f}"
     return {**customer, "avg_order_value": avg_order_value}
