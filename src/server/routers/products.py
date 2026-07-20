@@ -53,7 +53,8 @@ PRODUCT_DETAILS = {
         "id": "prod_123",
         "name": "Headphones X200",
         "price": "129.99",
-        "cost": 65.00,
+        "cost": "65.00",
+        "stock": 143,
         "image_url": "https://example.com/images/prod_123.jpg",
         "overall_score": 92,
         "rankings": {
@@ -62,6 +63,10 @@ PRODUCT_DETAILS = {
             "margin": {"position": 3, "value": "0.34"},
             "growth": {"position": 2, "value": "0.18"},
             "rating": {"position": 2, "value": "4.6"},
+        },
+        "sales_summary": {
+            "total_sold": 480,
+            "total_revenue": "62000",
         },
         "history": [
             {"date": "2026-06-01", "sales": 12, "revenue": 1500, "margin": 480},
