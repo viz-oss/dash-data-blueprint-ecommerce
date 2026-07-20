@@ -116,7 +116,7 @@ def parse_date(value: str, param_name: str) -> date_type:
 
 @router.get(
     "/",
-    operation_id="list",
+    operation_id="orders_list",
     summary="Lista zamówień",
     response_model=OrdersListResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
@@ -162,7 +162,7 @@ def orders_list(
 
 @router.get(
     "/order/",
-    operation_id="detail",
+    operation_id="order_detail",
     summary="Szczegóły zamówienia",
     response_model=OrderDetail,
     responses={

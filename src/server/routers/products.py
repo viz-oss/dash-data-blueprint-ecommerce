@@ -132,7 +132,7 @@ class ProductDetailResponse(BaseModel):
     recommendations: List[str]
 
 
-@router.get("/", operation_id="list", summary="Rankingi produktow", response_model=ProductsListResponse,)
+@router.get("/", operation_id="products_list", summary="Rankingi produktow", response_model=ProductsListResponse,)
 
 def products_list(
     ranking: RankingType = Query(RankingType.main, description="Typ rankingu produktów"),
@@ -148,6 +148,6 @@ def products_list(
         "products": products[:limit],
     }
 
-@router.get("/product/", operation_id="detail", summary="Karta produktu", response_model=ProductDetailResponse)
+@router.get("/product/", operation_id="products_detail", summary="Karta produktu", response_model=ProductDetailResponse)
 def products_detail(product_id: str = Query(..., description="Identyfikator produktu, np. P-1001")):
     return PRODUCT_DETAILS.get(product_id, {**DEFAULT_PRODUCT_DETAIL, "id": product_id})

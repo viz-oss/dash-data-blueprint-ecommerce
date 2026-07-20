@@ -72,7 +72,7 @@ def enrich(campaign: dict, min_roas: float) -> dict:
  
 @router.get(
     "/",
-    operation_id="list",
+    operation_id="ads_list",
     summary="Kampanie reklamowe",
     response_model=AdsResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},

@@ -131,7 +131,7 @@ class ValidationErrorResponse(BaseModel):
 
 @router.get(
     "/",
-    operation_id="list",
+    operation_id="customers_list",
     summary="Klienci statystyki",
     response_model=CustomersListResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
@@ -149,7 +149,7 @@ def customers_list(segment: SegmentEnum = Query(SegmentEnum.top)):
 
 @router.get(
     "/customer/",
-    operation_id="detail",
+    operation_id="customers_detail",
     summary="Karta klienta",
     response_model=CustomerDetailResponse,
     responses={

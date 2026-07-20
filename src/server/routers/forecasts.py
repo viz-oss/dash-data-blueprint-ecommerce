@@ -149,7 +149,7 @@ class GranularityEnum(str, Enum):
 
 @router.get(
     "/",
-    operation_id="list",
+    operation_id="forecasts_list",
     summary="Prognozy",
     response_model=ForecastResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},

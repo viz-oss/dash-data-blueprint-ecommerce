@@ -205,7 +205,7 @@ class ValidationErrorResponse(BaseModel):
 
 @router.get(
     "/summary/",
-    operation_id="summary",
+    operation_id="finance_summary",
     summary="Glowne wskazniki finansowe",
     response_model=FinanceSummaryResponse,
     responses={

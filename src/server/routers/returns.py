@@ -108,7 +108,7 @@ class ValidationErrorResponse(BaseModel):
 
 @router.get(
     "/",
-    operation_id="list",
+    operation_id="returns_list",
     summary="Zwroty i reklamacje",
     response_model=ReturnsResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},

@@ -112,7 +112,7 @@ class ValidationErrorResponse(BaseModel):
 
 @router.get(
     "/",
-    operation_id="list",
+    operation_id="competition_list",
     summary="Konkurencja",
     response_model=CompetitionResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},

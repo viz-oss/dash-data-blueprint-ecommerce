@@ -42,7 +42,7 @@ class ValidationErrorResponse(BaseModel):
  
 @router.get(
     "/",
-    operation_id="list",
+    operation_id="alerts_list",
     summary="Alerty",
     response_model=AlertsResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
