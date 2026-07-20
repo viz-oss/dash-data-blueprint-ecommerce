@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     dashboard,
     products,
+    product,
     finance,
     inventory,
     customers,
@@ -36,6 +37,7 @@ app.add_middleware(
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 # 1. Products
 app.include_router(products.router, prefix="/api/products", tags=["products"])
+app.include_router(product.router, prefix="/api/product", tags=["product"])
 # 2. Finance
 app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 # 3. Inventory

@@ -107,44 +107,6 @@ class ProductsListResponse(BaseModel):
     products: List[RankingItem]
 
 
-class RankingPosition(BaseModel):
-    position: int
-    value: float
-
-
-class SalesSummary(BaseModel):
-    total_sold: int
-    total_revenue: str
-
-
-class Reviews(BaseModel):
-    average: float
-    count: int
-
-
-class Rankings(BaseModel):
-    sales: RankingPosition
-    revenue: RankingPosition
-    margin: RankingPosition
-    growth: RankingPosition
-    rating: RankingPosition
-
-
-class ProductDetailResponse(BaseModel):
-    id: str
-    name: str
-    price: str
-    cost: str
-    stock: int
-    image_url: str
-    overall_score: float
-    rankings: Rankings
-    sales_summary: SalesSummary
-    reviews: Reviews
-    return_rate: float
-    recommendations: List[str]
-
-
 @router.get(
     "/",
     operation_id="products_list",
@@ -168,17 +130,3 @@ def products_list(
         "products": products[:limit],
     }
 
-
-@router.get(
-    "/product/",
-    operation_id="products_detail",
-    summary="Product Details",
-    response_model=ProductDetailResponse,
-)
-def products_detail(
-    product_id: str = Query(
-        ...,
-        description="Product identifier, e.g. P-1001",
-    )
-):
-    return PRODUCT_DETAILS.get(product_id, {**DEFAULT_PRODUCT_DETAIL, "id": product_id})
