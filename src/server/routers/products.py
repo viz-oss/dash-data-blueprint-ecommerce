@@ -2,6 +2,7 @@ from typing import Optional, List
 from enum import Enum
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
+
 router = APIRouter()
 
 RANKING_DESCRIPTIONS = {
@@ -48,43 +49,7 @@ RANKINGS = {
     ],
 }
 
-PRODUCT_DETAILS = {
-    "prod_123": {
-        "id": "prod_123",
-        "name": "Headphones X200",
-        "price": "129.99",
-        "cost": "65.00",
-        "stock": 143,
-        "image_url": "https://example.com/images/prod_123.jpg",
-        "overall_score": 92,
-        "rankings": {
-            "sales": {"position": 2, "value": 480},
-            "revenue": {"position": 1, "value": 62000},
-            "margin": {"position": 3, "value": "0.34"},
-            "growth": {"position": 2, "value": "0.18"},
-            "rating": {"position": 2, "value": "4.6"},
-        },
-        "sales_summary": {
-            "total_sold": 480,
-            "total_revenue": "62000",
-        },
-        "history": [
-            {"date": "2026-06-01", "sales": 12, "revenue": 1500, "margin": 480},
-            {"date": "2026-06-08", "sales": 15, "revenue": 1870, "margin": 590},
-            {"date": "2026-06-15", "sales": 9, "revenue": 1120, "margin": 360},
-            {"date": "2026-06-22", "sales": 18, "revenue": 2240, "margin": 710},
-        ],
-        "reviews": {"average": "4.6", "count": 210},
-        "return_rate": "0.04",
-        "recommendations": [
-            "Margin is below the category average - consider increasing the price by about 5%.",
-        ],
-    },
-}
 
-DEFAULT_PRODUCT_DETAIL = PRODUCT_DETAILS["prod_123"]
-
-# Response
 class RankingType(str, Enum):
     main = "main"
     sales = "sales"
@@ -129,4 +94,3 @@ def products_list(
         "ranking_description": RANKING_DESCRIPTIONS.get(ranking, ""),
         "products": products[:limit],
     }
-
