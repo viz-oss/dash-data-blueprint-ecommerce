@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Query
-from pydantic import BaseModel
-from typing import List, Any
+from fastapi import APIRouter, Query, HTTPException
+from pydantic import BaseModel, Field
+from typing import List, Any, Optional
+from datetime import datetime
 
+MAX_DAYS = 365
 router = APIRouter()
 
 SUMMARY = {
@@ -125,7 +127,6 @@ PROFITABILITY = {
     ],
 }
 
-# response
 class FinanceSummaryResponse(BaseModel):
     revenue: str
     costs: str
@@ -139,9 +140,8 @@ class RevenueChartPoint(BaseModel):
     revenue: float
 
 
-class RevenueResponse(BaseModel):
+class RevenueBlock(BaseModel):
     chart: List[RevenueChartPoint]
-    granularity: str
     peak_period: str
     low_period: str
     forecast_next_period: str
@@ -168,106 +168,117 @@ class CostCategory(BaseModel):
     trend: List[CostCategoryTrendPoint]
 
 
-class CostsResponse(BaseModel):
+class CostsBlock(BaseModel):
     total: str
     change_pct: str
     chart: List[CostsChartPoint]
-    granularity: str
     categories: List[CostCategory]
     recommendations: List[str]
- 
+
+
 class ProfitabilityChartPoint(BaseModel):
     date: str
     profit: float
     margin: float
- 
-class ProfitabilityResponse(BaseModel):
+
+
+class ProfitabilityBlock(BaseModel):
     chart: List[ProfitabilityChartPoint]
     profit_change_pct_vs_prev_period: str
     margin_change_pct_vs_prev_period: str
     cost_impact_description: str
     recommendations: List[str]
 
+
 class ValidationErrorItem(BaseModel):
     loc: List[Any]
     msg: str
     type: str
 
+
 class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
 
-# GET /api/analytics/finance/summary/
-# GET /api/analytics/finance/revenue/
-# GET /api/analytics/finance/costs/
-# GET /api/analytics/finance/profitability/
 
-@router.get(
-    "/summary/",
-    operation_id="finance_summary",
-    summary="Key Financial Metrics",
-    response_model=FinanceSummaryResponse,
-    responses={
-        422: {
-            "description": "Validation Error",
-            "model": ValidationErrorResponse,
-        }
-    },
-)
-def finance_summary():
-    return SUMMARY
+class FinanceResponse(BaseModel):
+    date_from: str = Field(alias="from")
+    date_to: str = Field(alias="to")
+    summary: FinanceSummaryResponse
+    revenue: RevenueBlock
+    costs: CostsBlock
+    profitability: ProfitabilityBlock
 
-def finance_summary():
-    return SUMMARY
+    model_config = {
+        "populate_by_name": True, 
+    }
 
-
-@router.get(
-    "/revenue/",
-    operation_id="revenue",
-    summary="Revenue",
-    response_model=RevenueResponse,
-)
-def finance_revenue(granularity: str = Query("week", description="day|week|month|year")):
-    return {**REVENUE, "granularity": granularity}
-
-
-@router.get(
-    "/costs/",
-    operation_id="costs",
-    summary="Costs",
-    response_model=CostsResponse,
-)
-def finance_costs(granularity: str = Query("week", description="day|week|month|year")):
-    return {**COSTS, "granularity": granularity}
-
-
-@router.get(
-    "/profitability/",
-    operation_id="profitability",
-    summary="Profitability",
-    response_model=ProfitabilityResponse,
-    responses={
-        422: {
-            "description": "Validation Error",
-            "model": ValidationErrorResponse,
-        }
-    },
-)
-def finance_profitability(
-    granularity: str = Query("week", description="day|week|month|year"),
-    date_from: str = Query(None, description="Start date of the range (YYYY-MM-DD)"),
-    date_to: str = Query(None, description="End date of the range (YYYY-MM-DD)"),
-):
-    chart = PROFITABILITY["chart"]
-
+def _filter_by_date(items: List[dict], date_from: Optional[str], date_to: Optional[str]) -> List[dict]:
+    result = items
     if date_from:
-        chart = [p for p in chart if p["date"] >= date_from]
+        result = [p for p in result if p["date"] >= date_from]
     if date_to:
-        chart = [p for p in chart if p["date"] <= date_to]
+        result = [p for p in result if p["date"] <= date_to]
+    return result
+
+
+def _filter_categories(categories: List[dict], date_from: Optional[str], date_to: Optional[str]) -> List[dict]:
+    return [
+        {**cat, "trend": _filter_by_date(cat["trend"], date_from, date_to)}
+        for cat in categories
+    ]
+
+# GET /api/analytics/finance/?from=...&to=...
+
+@router.get(
+    "/",
+    operation_id="finance",
+    summary="Finance Overview (summary + revenue + costs + profitability)",
+    response_model=FinanceResponse,
+    responses={
+        422: {
+            "description": "Validation Error",
+            "model": ValidationErrorResponse,
+        }
+    },
+)
+def finance(
+    date_from: Optional[str] = Query(None, alias="from", description="Start date of the range (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, alias="to", description="End date of the range (YYYY-MM-DD)"),
+):
+    if date_from and date_to:
+        start = datetime.strptime(date_from, "%Y-%m-%d")
+        end = datetime.strptime(date_to, "%Y-%m-%d")
+
+        if (end - start).days > MAX_DAYS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Date range cannot exceed {MAX_DAYS} days."
+            )
+
+        if end < start:
+            raise HTTPException(
+                status_code=400,
+                detail="'to' must be greater than or equal to 'from'."
+            )
+
+    revenue_chart = _filter_by_date(REVENUE["chart"], date_from, date_to)
+    costs_chart = _filter_by_date(COSTS["chart"], date_from, date_to)
+    costs_categories = _filter_categories(COSTS["categories"], date_from, date_to)
+    profitability_chart = _filter_by_date(PROFITABILITY["chart"], date_from, date_to)
+
+    all_dates = (
+        [p["date"] for p in revenue_chart]
+        + [p["date"] for p in costs_chart]
+        + [p["date"] for p in profitability_chart]
+    )
+    resolved_from = date_from or (min(all_dates) if all_dates else "")
+    resolved_to = date_to or (max(all_dates) if all_dates else "")
 
     return {
-        **PROFITABILITY,
-        "chart": chart,
-        "granularity": granularity,
-        "date_from": date_from or (chart[0]["date"] if chart else ""),
-        "date_to": date_to or (chart[-1]["date"] if chart else ""),
+        "date_from": resolved_from,
+        "date_to": resolved_to,
+        "summary": SUMMARY,
+        "revenue": {**REVENUE, "chart": revenue_chart},
+        "costs": {**COSTS, "chart": costs_chart, "categories": costs_categories},
+        "profitability": {**PROFITABILITY, "chart": profitability_chart},
     }
