@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
-RANKING_DESCRIPTIONS = {
+DESCRIPTIONS = {
     "main": "overall ranking - combines all 5 criteria with weights",
     "sales": "ranking by number of units sold",
     "revenue": "ranking by generated revenue",
@@ -59,38 +59,40 @@ class RankingType(str, Enum):
     rating = "rating"
 
 
-class RankingItem(BaseModel):
+class Product(BaseModel):
     id: str
     name: str
     position: int
     score: float
 
 
-class ProductsListResponse(BaseModel):
-    ranking_type: str
-    ranking_description: str
-    products: List[RankingItem]
+class ProductsResponse(BaseModel):
+    type: RankingType
+    products: List[Product]
+
+
+def _build_endpoint_description() -> str:
+    lines = ["Available types (`type`):", ""]
+    lines += [f"- **{key}** - {desc}" for key, desc in DESCRIPTIONS.items()]
+    return "\n".join(lines)
 
 
 @router.get(
     "/",
     operation_id="products_list",
     summary="Product Rankings",
-    response_model=ProductsListResponse,
+    description=_build_endpoint_description(),
+    response_model=ProductsResponse,
 )
 def products_list(
-    ranking: RankingType = Query(
-        RankingType.main,
-        description="Product ranking type",
-    ),
+    type: RankingType = Query(RankingType.main),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
 ):
-    products = RANKINGS.get(ranking, RANKINGS["main"])
+    products = RANKINGS.get(type, RANKINGS["main"])
     if search:
         products = [p for p in products if search.lower() in p["name"].lower()]
     return {
-        "ranking_type": ranking,
-        "ranking_description": RANKING_DESCRIPTIONS.get(ranking, ""),
+        "type": type,
         "products": products[:limit],
     }

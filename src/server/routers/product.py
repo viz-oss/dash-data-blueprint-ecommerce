@@ -21,8 +21,8 @@ PRODUCT_DETAILS = {
             "rating": {"position": 2, "value": "4.6"},
         },
         "sales_summary": {
-            "total_sold": 480,
-            "total_revenue": "62000",
+            "sold": 480,
+            "revenue": "62000",
         },
         "history": [
             {"date": "2026-06-01", "sales": 12, "revenue": 1500, "margin": 480},
@@ -48,8 +48,8 @@ class RankingPosition(BaseModel):
 
 
 class SalesSummary(BaseModel):
-    total_sold: int
-    total_revenue: str
+    sold: int
+    revenue: str
 
 
 class Reviews(BaseModel):
@@ -65,7 +65,7 @@ class Rankings(BaseModel):
     rating: RankingPosition
 
 
-class ProductDetailResponse(BaseModel):
+class ProductDetail(BaseModel):
     id: str
     name: str
     price: str
@@ -84,12 +84,7 @@ class ProductDetailResponse(BaseModel):
     "/",
     operation_id="products_detail",
     summary="Product Details",
-    response_model=ProductDetailResponse,
+    response_model=ProductDetail,
 )
-def products_detail(
-    product_id: str = Query(
-        ...,
-        description="Product identifier, e.g. P-1001",
-    )
-):
-    return PRODUCT_DETAILS.get(product_id, {**DEFAULT_PRODUCT_DETAIL, "id": product_id})
+def products_detail(id: str = Query(...)):
+    return PRODUCT_DETAILS.get(id, {**DEFAULT_PRODUCT_DETAIL, "id": id})
