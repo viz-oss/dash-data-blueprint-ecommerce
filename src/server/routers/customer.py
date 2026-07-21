@@ -84,7 +84,7 @@ class ValidationErrorResponse(BaseModel):
 
 
 @router.get(
-    "/customer/",
+    "/",
     operation_id="customers_detail",
     summary="Customer Profile",
     response_model=CustomerDetailResponse,

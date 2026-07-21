@@ -92,7 +92,7 @@ def parse_date(value: str, param_name: str) -> date_type:
 
 
 @router.get(
-    "/order/",
+    "/",
     operation_id="order_detail",
     summary="Order Details",
     response_model=OrderDetail,
