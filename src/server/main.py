@@ -8,7 +8,9 @@ from routers import (
     finance,
     inventory,
     customers,
+    customer,
     orders,
+    order,
     ads,
     competition,
     returns,
@@ -44,8 +46,10 @@ app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
 # 4. Customers
 app.include_router(customers.router, prefix="/api/customers", tags=["customers"])
+app.include_router(customer.router, prefix="/api/customer", tags=["customer"])
 # 5. Orders
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
+app.include_router(order.router, prefix="/api/order", tags=["order"])
 # 6. Ads
 app.include_router(ads.router, prefix="/api/ads", tags=["ads"])
 # 7. Competition
@@ -63,10 +67,13 @@ def api_index():
     return {
         "dashboard": "/api/dashboard/",
         "products": "/api/products/",
+        "product": "/api/product/",
         "finance": "/api/finance/summary/",
         "inventory": "/api/inventory/",
         "customers": "/api/customers/",
+        "customer": "/api/customer/",
         "orders": "/api/orders/",
+        "order": "/api/order/",
         "ads": "/api/ads/",
         "competition": "/api/competition/",
         "returns": "/api/returns/",
