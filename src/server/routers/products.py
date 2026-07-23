@@ -132,8 +132,6 @@ def products_list(
     "/summary/",
     operation_id="products_summary",
     summary="Product Rankings - Summary",
-    description="Returns aggregated data for the given period, including a configurable "
-    "top N products list (`top`).",
     response_model=ProductsSummary,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )

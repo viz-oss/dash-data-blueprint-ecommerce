@@ -50,6 +50,18 @@ class PriceStatus(str, Enum):
     same = "same"
 
 
+class SortField(str, Enum):
+    name = "name"
+    our_price = "our_price"
+    competitor_price = "competitor_price"
+    diff_pct = "diff_pct"
+
+
+class SortOrder(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
 def diff_pct(our_price: str, competitor_price: str) -> float:
     return round((float(our_price) - float(competitor_price)) / float(competitor_price) * 100, 1)
 
@@ -62,12 +74,12 @@ def price_status(diff: float) -> PriceStatus:
     return PriceStatus.same
 
 
-class CompetitionKPIs(BaseModel):
-    avg_competitor_price: str
-    price_diff_pct: float
-    worse_conditions_count: int
-    products_needing_action_count: int
-
+def build_comparison(products: list) -> list:
+    comparison = []
+    for p in products:
+        diff = diff_pct(p["our_price"], p["competitor_price"])
+        comparison.append({**p, "diff_pct": diff, "status": price_status(diff)})
+    return comparison
 
 class PriceComparisonItem(BaseModel):
     id: str
@@ -77,12 +89,19 @@ class PriceComparisonItem(BaseModel):
     diff_pct: float
     status: PriceStatus
 
+class CompetitionListResponse(BaseModel):
+    products: List[PriceComparisonItem]
+
+class CompetitionKPIs(BaseModel):
+    avg_competitor_price: str
+    price_diff_pct: float
+    worse_conditions_count: int
+    products_needing_action_count: int
 
 class PriceHistoryPoint(BaseModel):
     date: str
     our_price: str
     competitor_price: str
-
 
 class AttentionItem(BaseModel):
     id: str
@@ -95,9 +114,7 @@ class AttentionItem(BaseModel):
     sales_impact: str
 
 
-class CompetitionResponse(BaseModel):
-    kpis: CompetitionKPIs
-    price_comparison: List[PriceComparisonItem]
+class CompetitionSummaryResponse(CompetitionKPIs):
     needs_attention: List[AttentionItem]
     recommendations: List[str]
 
@@ -113,41 +130,51 @@ class ValidationErrorResponse(BaseModel):
 
 
 @router.get(
-    "/",
+    "/list/",
     operation_id="competition_list",
-    summary="Competition",
-    response_model=CompetitionResponse,
+    summary="Competition - List",
+    response_model=CompetitionListResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def competition_list(
-    search: Optional[str] = Query(None, description="Search products by name in the price comparison"),
-    action_threshold_pct: float = Query(10.0, description="Percentage threshold above which a product requires a pricing action"),
+    search: Optional[str] = Query(None, description="Search products by name"),
+    sort_by: SortField = Query(SortField.diff_pct, description="Field to sort by"),
+    order: SortOrder = Query(SortOrder.desc, description="Sort order"),
 ):
     products = PRODUCTS
     if search:
         products = [p for p in products if search.lower() in p["name"].lower()]
 
-    comparison = []
+    comparison = build_comparison(products)
+    comparison.sort(key=lambda p: p[sort_by], reverse=(order == SortOrder.desc))
+
+    return {"products": comparison}
+
+
+@router.get(
+    "/summary/",
+    operation_id="competition_summary",
+    summary="Competition - Summary",
+    response_model=CompetitionSummaryResponse,
+    responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
+)
+def competition_summary(
+    action_threshold_pct: float = Query(10.0, description="Percentage threshold above which a product requires a pricing action"),
+):
     attention = []
-
-    for p in products:
+    for p in PRODUCTS:
         diff = diff_pct(p["our_price"], p["competitor_price"])
-        status = price_status(diff)
-
-        comparison.append({**p, "diff_pct": diff, "status": status})
-
         if diff >= action_threshold_pct:
             attention.append({
                 **p,
                 "diff_pct": diff,
-                "status": status,
+                "status": price_status(diff),
                 "price_history": PRICE_HISTORY.get(p["id"], []),
                 "sales_impact": SALES_IMPACT.get(p["id"], "No significant impact on sales."),
             })
 
     return {
-        "kpis": KPIS,
-        "price_comparison": comparison,
+        **KPIS,
         "needs_attention": attention,
         "recommendations": RECOMMENDATIONS,
     }
