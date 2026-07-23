@@ -1,7 +1,6 @@
 from typing import List, Any
 from pydantic import BaseModel
-from fastapi import APIRouter, Query
-from enum import Enum
+from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -37,19 +36,6 @@ ALERTS = [
 ]
 
 
-class AlertType(str, Enum):
-    inventory = "inventory"
-    sale = "sale"
-    returns = "returns"
-    margin = "margin"
-
-
-class Severity(str, Enum):
-    low = "low"
-    medium = "medium"
-    high = "high"
-
-
 class Alert(BaseModel):
     id: str
     type: str
@@ -79,19 +65,5 @@ class ValidationErrorResponse(BaseModel):
     response_model=AlertsResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
-def alerts_list(
-    type: AlertType | None = Query(
-        None,
-        description="Alert type",
-    ),
-    severity: Severity | None = Query(
-        None,
-        description="Alert severity",
-    ),
-):
-    alerts = ALERTS
-    if type:
-        alerts = [a for a in alerts if a["type"] == type]
-    if severity:
-        alerts = [a for a in alerts if a["severity"] == severity]
-    return {"alerts": alerts}
+def alerts_list():
+    return {"alerts": ALERTS}
