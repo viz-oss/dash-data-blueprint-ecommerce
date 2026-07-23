@@ -1,6 +1,7 @@
+from datetime import datetime, date as date_type
 from enum import Enum
-from typing import List, Any
-from fastapi import APIRouter, Query
+from typing import List, Any, Optional
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -84,7 +85,13 @@ class CommonIssue(BaseModel):
     count: int
 
 
+class DateRange(BaseModel):
+    from_: Optional[date_type] = None
+    to: Optional[date_type] = None
+
+
 class ReturnsResponse(BaseModel):
+    period: DateRange
     kpis: ReturnsKPIs
     top_by_return_count: List[ProductReturnStat]
     top_by_return_rate: List[ProductReturnStat]
@@ -104,6 +111,16 @@ class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
 
 
+def parse_date(value: str, param_name: str) -> date_type:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid date format in '{param_name}', expected YYYY-MM-DD",
+        )
+
+
 @router.get(
     "/",
     operation_id="returns_list",
@@ -113,7 +130,18 @@ class ValidationErrorResponse(BaseModel):
 )
 def returns_list(
     limit: int = Query(5, ge=1, le=20, description="Number of items to display in each ranking"),
+    from_: Optional[str] = Query(
+        None, alias="from", description="Starting date of the range, format YYYY-MM-DD"
+    ),
+    to: Optional[str] = Query(
+        None, description="Ending date of the range, format YYYY-MM-DD"
+    ),
 ):
+    date_from = parse_date(from_, "from") if from_ else None
+    date_to = parse_date(to, "to") if to else None
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="'from' can not be before 'to'")
+
     enriched = [
         {**p, "return_rate_pct": round(p["returns_count"] / p["orders_count"] * 100, 1)}
         for p in PRODUCT_RETURNS
@@ -152,6 +180,7 @@ def returns_list(
     }
 
     return {
+        "period": {"from_": date_from, "to": date_to},
         "kpis": kpis,
         "top_by_return_count": top_by_return_count,
         "top_by_return_rate": top_by_return_rate,
