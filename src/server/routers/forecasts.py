@@ -9,8 +9,6 @@ router = APIRouter()
 
 DEFAULT_ANCHOR_DATE = date(2026, 7, 15)
 
-GRANULARITY_DAYS = {"day": 1, "week": 7, "month": 30, "year": 365}
-
 SALES_BASE = {"value": 850, "growth_pct": 3.0}
 REVENUE_BASE = {"value": 4400.00, "growth_pct": 3.0}
 PROFIT_BASE = {"value": 1900.00, "growth_pct": 2.0}
@@ -71,7 +69,6 @@ class SalesForecastPoint(BaseModel):
 
 
 class SalesForecast(BaseModel):
-    granularity: str
     chart: List[SalesForecastPoint]
     next_period_units: int
     change_pct_vs_prev_period: float
@@ -84,7 +81,6 @@ class RevenueForecastPoint(BaseModel):
 
 
 class RevenueForecast(BaseModel):
-    granularity: str
     chart: List[RevenueForecastPoint]
     next_period_revenue: str
     change_pct_vs_prev_period: float
@@ -97,7 +93,6 @@ class ProfitForecastPoint(BaseModel):
 
 
 class ProfitForecast(BaseModel):
-    granularity: str
     chart: List[ProfitForecastPoint]
     next_period_profit: str
     change_pct_vs_prev_period: float
@@ -110,7 +105,6 @@ class OrdersForecastPoint(BaseModel):
 
 
 class OrdersForecast(BaseModel):
-    granularity: str
     chart: List[OrdersForecastPoint]
     next_period_orders: int
     change_pct_vs_prev_period: float
@@ -137,7 +131,6 @@ class ForecastPeriod(BaseModel):
 
 class ForecastResponse(BaseModel):
     period: ForecastPeriod
-    granularity: str
     horizon: int
     sales: SalesForecast
     revenue: RevenueForecast
@@ -157,13 +150,6 @@ class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
 
 
-class GranularityEnum(str, Enum):
-    day = "day"
-    week = "week"
-    month = "month"
-    year = "year"
-
-
 @router.get(
     "/",
     operation_id="forecasts_list",
@@ -172,7 +158,6 @@ class GranularityEnum(str, Enum):
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def forecast_list(
-    granularity: GranularityEnum = Query(GranularityEnum.week, description="day, week, month, year"),
     horizon: int = Query(4, ge=1, le=52, description="Number of future periods to forecast (ignored if 'to' is provided)"),
     stock_alert_days: int = Query(
         14,
@@ -192,18 +177,13 @@ def forecast_list(
     if end_date and end_date <= anchor_date:
         raise HTTPException(status_code=422, detail="'from' cannot be later than or equal to 'to'")
 
-    step_days = GRANULARITY_DAYS[granularity.value]
 
-    if end_date:
-        horizon = max(1, ceil((end_date - anchor_date).days / step_days))
-
-    sales_chart = build_chart(SALES_BASE["value"], SALES_BASE["growth_pct"], horizon, step_days, anchor_date)
-    revenue_chart = build_chart(REVENUE_BASE["value"], REVENUE_BASE["growth_pct"], horizon, step_days, anchor_date)
-    profit_chart = build_chart(PROFIT_BASE["value"], PROFIT_BASE["growth_pct"], horizon, step_days, anchor_date)
-    orders_chart = build_chart(ORDERS_BASE["value"], ORDERS_BASE["growth_pct"], horizon, step_days, anchor_date)
+    sales_chart = build_chart(SALES_BASE["value"], SALES_BASE["growth_pct"], horizon,  anchor_date)
+    revenue_chart = build_chart(REVENUE_BASE["value"], REVENUE_BASE["growth_pct"], horizon,  anchor_date)
+    profit_chart = build_chart(PROFIT_BASE["value"], PROFIT_BASE["growth_pct"], horizon,  anchor_date)
+    orders_chart = build_chart(ORDERS_BASE["value"], ORDERS_BASE["growth_pct"], horizon,  anchor_date)
 
     sales = {
-        "granularity": granularity,
         "chart": [{"date": p["date"], "predicted_units": round(p["value"])} for p in sales_chart],
         "next_period_units": round(sales_chart[0]["value"]),
         "change_pct_vs_prev_period": SALES_BASE["growth_pct"],
@@ -211,7 +191,6 @@ def forecast_list(
     }
 
     revenue = {
-        "granularity": granularity,
         "chart": [{"date": p["date"], "predicted_revenue": f"{p['value']:.2f}"} for p in revenue_chart],
         "next_period_revenue": f"{revenue_chart[0]['value']:.2f}",
         "change_pct_vs_prev_period": REVENUE_BASE["growth_pct"],
@@ -219,7 +198,6 @@ def forecast_list(
     }
 
     profit = {
-        "granularity": granularity,
         "chart": [{"date": p["date"], "predicted_profit": f"{p['value']:.2f}"} for p in profit_chart],
         "next_period_profit": f"{profit_chart[0]['value']:.2f}",
         "change_pct_vs_prev_period": PROFIT_BASE["growth_pct"],
@@ -227,7 +205,6 @@ def forecast_list(
     }
 
     orders = {
-        "granularity": granularity,
         "chart": [{"date": p["date"], "predicted_orders": round(p["value"])} for p in orders_chart],
         "next_period_orders": round(orders_chart[0]["value"]),
         "change_pct_vs_prev_period": ORDERS_BASE["growth_pct"],
@@ -250,7 +227,6 @@ def forecast_list(
 
     return {
         "period": {"from_": anchor_date.isoformat(), "to": end_date.isoformat() if end_date else None},
-        "granularity": granularity,
         "horizon": horizon,
         "sales": sales,
         "revenue": revenue,
