@@ -177,11 +177,15 @@ def forecast_list(
     if end_date and end_date <= anchor_date:
         raise HTTPException(status_code=422, detail="'from' cannot be later than or equal to 'to'")
 
+    step_days = 1  # okres liczony w dniach - na stałe, nie do wyboru z zewnątrz
 
-    sales_chart = build_chart(SALES_BASE["value"], SALES_BASE["growth_pct"], horizon,  anchor_date)
-    revenue_chart = build_chart(REVENUE_BASE["value"], REVENUE_BASE["growth_pct"], horizon,  anchor_date)
-    profit_chart = build_chart(PROFIT_BASE["value"], PROFIT_BASE["growth_pct"], horizon,  anchor_date)
-    orders_chart = build_chart(ORDERS_BASE["value"], ORDERS_BASE["growth_pct"], horizon,  anchor_date)
+    if end_date:
+        horizon = ceil((end_date - anchor_date).days / step_days)
+
+    sales_chart = build_chart(SALES_BASE["value"], SALES_BASE["growth_pct"], horizon, step_days, anchor_date)
+    revenue_chart = build_chart(REVENUE_BASE["value"], REVENUE_BASE["growth_pct"], horizon, step_days, anchor_date)
+    profit_chart = build_chart(PROFIT_BASE["value"], PROFIT_BASE["growth_pct"], horizon, step_days, anchor_date)
+    orders_chart = build_chart(ORDERS_BASE["value"], ORDERS_BASE["growth_pct"], horizon, step_days, anchor_date)
 
     sales = {
         "chart": [{"date": p["date"], "predicted_units": round(p["value"])} for p in sales_chart],
