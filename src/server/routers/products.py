@@ -73,12 +73,11 @@ class ProductsResponse(BaseModel):
 
 
 class ProductsSummary(BaseModel):
-    type: RankingType
     date_from: Optional[date_type] = None
     date_to: Optional[date_type] = None
     total_products: int
     total_score: float
-    top_product: Optional[Product] = None
+    top_products: List[Product] = []
 
 
 class ValidationErrorItem(BaseModel):
@@ -133,13 +132,12 @@ def products_list(
     "/summary/",
     operation_id="products_summary",
     summary="Product Rankings - Summary",
-    description=_build_endpoint_description()
-    + "\n\nReturns aggregated data for the given period instead of the full product list.",
+    description="Returns aggregated data for the given period, including a configurable "
+    "top N products list (`top`).",
     response_model=ProductsSummary,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def products_summary(
-    type: RankingType = Query(RankingType.main),
     from_: Optional[str] = Query(
         None,
         alias="from",
@@ -149,6 +147,7 @@ def products_summary(
         None,
         description="End date of the range, format YYYY-MM-DD",
     ),
+    top: int = Query(5, ge=1, le=100, description="How many top products to return"),
 ):
     date_from = parse_date(from_, "from") if from_ else None
     date_to = parse_date(to, "to") if to else None
@@ -156,17 +155,16 @@ def products_summary(
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=422, detail="'from' cannot be later than 'to'")
 
-    products = RANKINGS.get(type, RANKINGS["main"])
+    products = RANKINGS["main"]
 
     total_products = len(products)
     total_score = sum(p["score"] for p in products)
-    top_product = max(products, key=lambda p: p["score"]) if products else None
+    top_products = sorted(products, key=lambda p: p["score"], reverse=True)[:top]
 
     return {
-        "type": type,
         "date_from": date_from,
         "date_to": date_to,
         "total_products": total_products,
         "total_score": total_score,
-        "top_product": top_product,
+        "top_products": top_products,
     }
