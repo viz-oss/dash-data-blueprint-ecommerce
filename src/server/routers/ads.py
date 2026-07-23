@@ -55,18 +55,14 @@ class AdsListResponse(BaseModel):
     campaigns: List[Campaign]
 
 
-class Kpis(BaseModel):
+class AdsSummary(BaseModel):
+    date_from: Optional[date_type] = None
+    date_to: Optional[date_type] = None
     spend: str
     roas: float
     acos: float
     clicks: int
     conversions: int
-
-
-class AdsSummary(BaseModel):
-    date_from: Optional[date_type] = None
-    date_to: Optional[date_type] = None
-    kpis: Kpis
     profitable: int
     unprofitable: int
     recommendations: List[str]
@@ -192,7 +188,7 @@ def ads_summary(
     return {
         "date_from": date_from,
         "date_to": date_to,
-        "kpis": KPIS,
+        **KPIS,
         "profitable": profitable,
         "unprofitable": unprofitable,
         "recommendations": RECOMMENDATIONS,
