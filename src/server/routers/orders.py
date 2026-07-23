@@ -1,7 +1,7 @@
-from datetime import date as date_type
+from datetime import datetime, date as date_type
 from enum import Enum
-from typing import Any, List
-from fastapi import APIRouter,  Query
+from typing import Any, List, Optional
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -101,6 +101,16 @@ ORDERS_BY_STATUS: dict[str, List[OrderSummary]] = {
 }
 
 
+def parse_date(value: str, param_name: str) -> date_type:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid date format in '{param_name}', expected YYYY-MM-DD",
+        )
+
+
 @router.get(
     "/",
     operation_id="orders_list",
@@ -113,6 +123,28 @@ def orders_list(
         OrderStatus.pending,
         description="Order section to display",
     ),
+    from_: Optional[str] = Query(
+        None,
+        alias="from",
+        description="Start date of the range, format YYYY-MM-DD",
+    ),
+    to: Optional[str] = Query(
+        None,
+        description="End date of the range, format YYYY-MM-DD",
+    ),
 ) -> OrdersListResponse:
     orders = ORDERS_BY_STATUS.get(status.value, [])
+
+    date_from = parse_date(from_, "from") if from_ else None
+    date_to = parse_date(to, "to") if to else None
+
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="'from' cannot be later than 'to'")
+
+    if date_from or date_to:
+        orders = [
+            o for o in orders
+            if (not date_from or o.date >= date_from) and (not date_to or o.date <= date_to)
+        ]
+
     return OrdersListResponse(counts=COUNTS, status=status, orders=orders)

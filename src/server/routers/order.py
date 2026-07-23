@@ -1,4 +1,4 @@
-from datetime import datetime, date as date_type
+from datetime import date as date_type
 from enum import Enum
 from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query
@@ -8,11 +8,19 @@ router = APIRouter()
 
 
 class OrderStatus(str, Enum):
-    new = "new"
-    to_ship = "to_ship"
+    pending = "pending"
+    processing = "processing"
+    ready_to_ship = "ready_to_ship"
     shipped = "shipped"
-    completed = "completed"
+    delivered = "delivered"
+    delivery_failed = "delivery_failed"
+    return_requested = "return_requested"
     returned = "returned"
+    exchange = "exchange"
+    on_hold = "on_hold"
+    cancelled = "cancelled"
+    awaiting_payment = "awaiting_payment"
+    payment_failed = "payment_failed"
 
 
 class OrderItem(BaseModel):
@@ -51,7 +59,7 @@ ORDER_DETAILS: dict[str, OrderDetail] = {
     "zam_12345": OrderDetail(
         id="zam_12345",
         number="12345",
-        status=OrderStatus.new,
+        status=OrderStatus.pending,
         date="2026-07-12",
         items=[
             OrderItem(
@@ -81,16 +89,6 @@ ORDER_DETAILS: dict[str, OrderDetail] = {
 }
 
 
-def parse_date(value: str, param_name: str) -> date_type:
-    try:
-        return datetime.strptime(value, "%Y.%m.%d").date()
-    except ValueError:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid date format in '{param_name}', expected YYYY.MM.DD",
-        )
-
-
 @router.get(
     "/",
     operation_id="order_detail",
@@ -107,30 +105,9 @@ def orders_detail(
         description="Order identifier, e.g. zam_12345",
         pattern=r"^zam_\d+$",
     ),
-    from_: Optional[str] = Query(
-        None,
-        alias="from",
-        description="Start date of the range, format YYYY.MM.DD",
-    ),
-    to: Optional[str] = Query(
-        None,
-        description="End date of the range, format YYYY.MM.DD",
-    ),
 ) -> OrderDetail:
     order = ORDER_DETAILS.get(order_id)
     if order is None:
         raise HTTPException(status_code=404, detail=f"Order '{order_id}' was not found")
-
-    date_from = parse_date(from_, "from") if from_ else None
-    date_to = parse_date(to, "to") if to else None
-
-    if date_from and date_to and date_from > date_to:
-        raise HTTPException(status_code=422, detail="'from' cannot be later than 'to'")
-
-    if (date_from and order.date < date_from) or (date_to and order.date > date_to):
-        raise HTTPException(
-            status_code=404,
-            detail=f"Order '{order_id}' is outside the specified date range",
-        )
 
     return order

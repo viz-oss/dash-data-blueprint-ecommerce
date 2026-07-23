@@ -1,6 +1,7 @@
-from typing import Optional, List
+from datetime import datetime, date as date_type
+from typing import Any, Optional, List
 from enum import Enum
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -71,16 +72,45 @@ class ProductsResponse(BaseModel):
     products: List[Product]
 
 
+class ProductsSummary(BaseModel):
+    type: RankingType
+    date_from: Optional[date_type] = None
+    date_to: Optional[date_type] = None
+    total_products: int
+    total_score: float
+    top_product: Optional[Product] = None
+
+
+class ValidationErrorItem(BaseModel):
+    loc: List[Any]
+    msg: str
+    type: str
+
+
+class ValidationErrorResponse(BaseModel):
+    detail: List[ValidationErrorItem]
+
+
 def _build_endpoint_description() -> str:
     lines = ["Available types (`type`):", ""]
     lines += [f"- **{key}** - {desc}" for key, desc in DESCRIPTIONS.items()]
     return "\n".join(lines)
 
 
+def parse_date(value: str, param_name: str) -> date_type:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid date format in '{param_name}', expected YYYY-MM-DD",
+        )
+
+
 @router.get(
-    "/",
+    "/list/",
     operation_id="products_list",
-    summary="Product Rankings",
+    summary="Product Rankings - List",
     description=_build_endpoint_description(),
     response_model=ProductsResponse,
 )
@@ -92,7 +122,51 @@ def products_list(
     products = RANKINGS.get(type, RANKINGS["main"])
     if search:
         products = [p for p in products if search.lower() in p["name"].lower()]
+
     return {
         "type": type,
         "products": products[:limit],
+    }
+
+
+@router.get(
+    "/summary/",
+    operation_id="products_summary",
+    summary="Product Rankings - Summary",
+    description=_build_endpoint_description()
+    + "\n\nReturns aggregated data for the given period instead of the full product list.",
+    response_model=ProductsSummary,
+    responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
+)
+def products_summary(
+    type: RankingType = Query(RankingType.main),
+    from_: Optional[str] = Query(
+        None,
+        alias="from",
+        description="Start date of the range, format YYYY-MM-DD",
+    ),
+    to: Optional[str] = Query(
+        None,
+        description="End date of the range, format YYYY-MM-DD",
+    ),
+):
+    date_from = parse_date(from_, "from") if from_ else None
+    date_to = parse_date(to, "to") if to else None
+
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="'from' cannot be later than 'to'")
+
+    products = RANKINGS.get(type, RANKINGS["main"])
+
+    total_products = len(products)
+    total_score = sum(p["score"] for p in products)
+    top_product = max(products, key=lambda p: p["score"]) if products else None
+
+    return {
+        "type": type,
+        "date_from": date_from,
+        "date_to": date_to,
+        "total_products": total_products,
+        "total_score": total_score,
+        "top_product": top_product,
     }
