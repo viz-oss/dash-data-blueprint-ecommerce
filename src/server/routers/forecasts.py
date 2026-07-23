@@ -1,12 +1,13 @@
-from datetime import date, timedelta
+from datetime import datetime, date, timedelta
 from enum import Enum
-from typing import List, Any
-from fastapi import APIRouter, Query
+from math import ceil
+from typing import List, Any, Optional
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 router = APIRouter()
 
-TODAY = date(2026, 7, 15)
+DEFAULT_ANCHOR_DATE = date(2026, 7, 15)
 
 GRANULARITY_DAYS = {"day": 1, "week": 7, "month": 30, "year": 365}
 
@@ -43,10 +44,20 @@ def trend_from_growth(growth_pct: float) -> Trend:
     return Trend.stable
 
 
-def build_chart(base_value: float, growth_pct: float, horizon: int, step_days: int):
+def parse_date(value: str, param_name: str) -> date:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid date format in '{param_name}', expected YYYY-MM-DD",
+        )
+
+
+def build_chart(base_value: float, growth_pct: float, horizon: int, step_days: int, anchor_date: date):
     chart = []
     value = base_value
-    current_date = TODAY
+    current_date = anchor_date
     for _ in range(horizon):
         current_date = current_date + timedelta(days=step_days)
         value = value * (1 + growth_pct / 100)
@@ -119,7 +130,13 @@ class StockDepletionForecast(BaseModel):
     items: List[StockDepletionItem]
 
 
+class ForecastPeriod(BaseModel):
+    from_: str
+    to: Optional[str] = None
+
+
 class ForecastResponse(BaseModel):
+    period: ForecastPeriod
     granularity: str
     horizon: int
     sales: SalesForecast
@@ -156,19 +173,34 @@ class GranularityEnum(str, Enum):
 )
 def forecast_list(
     granularity: GranularityEnum = Query(GranularityEnum.week, description="day, week, month, year"),
-    horizon: int = Query(4, ge=1, le=52, description="Number of future periods to forecast"),
+    horizon: int = Query(4, ge=1, le=52, description="Number of future periods to forecast (ignored if 'to' is provided)"),
     stock_alert_days: int = Query(
         14,
         ge=1,
         description="Threshold in days below which a product is marked as at risk of running out of stock",
     ),
+    from_: Optional[str] = Query(
+        None, alias="from", description="Forecast anchor (start) date, format YYYY-MM-DD"
+    ),
+    to: Optional[str] = Query(
+        None, description="Forecast end date, format YYYY-MM-DD (if set, overrides 'horizon')"
+    ),
 ):
+    anchor_date = parse_date(from_, "from") if from_ else DEFAULT_ANCHOR_DATE
+    end_date = parse_date(to, "to") if to else None
+
+    if end_date and end_date <= anchor_date:
+        raise HTTPException(status_code=422, detail="'from' cannot be later than or equal to 'to'")
+
     step_days = GRANULARITY_DAYS[granularity.value]
 
-    sales_chart = build_chart(SALES_BASE["value"], SALES_BASE["growth_pct"], horizon, step_days)
-    revenue_chart = build_chart(REVENUE_BASE["value"], REVENUE_BASE["growth_pct"], horizon, step_days)
-    profit_chart = build_chart(PROFIT_BASE["value"], PROFIT_BASE["growth_pct"], horizon, step_days)
-    orders_chart = build_chart(ORDERS_BASE["value"], ORDERS_BASE["growth_pct"], horizon, step_days)
+    if end_date:
+        horizon = max(1, ceil((end_date - anchor_date).days / step_days))
+
+    sales_chart = build_chart(SALES_BASE["value"], SALES_BASE["growth_pct"], horizon, step_days, anchor_date)
+    revenue_chart = build_chart(REVENUE_BASE["value"], REVENUE_BASE["growth_pct"], horizon, step_days, anchor_date)
+    profit_chart = build_chart(PROFIT_BASE["value"], PROFIT_BASE["growth_pct"], horizon, step_days, anchor_date)
+    orders_chart = build_chart(ORDERS_BASE["value"], ORDERS_BASE["growth_pct"], horizon, step_days, anchor_date)
 
     sales = {
         "granularity": granularity,
@@ -208,7 +240,7 @@ def forecast_list(
             {
                 **p,
                 "predicted_out_of_stock_date": (
-                    TODAY + timedelta(days=p["predicted_days_until_out"])
+                    anchor_date + timedelta(days=p["predicted_days_until_out"])
                 ).isoformat(),
                 "at_risk": p["predicted_days_until_out"] <= stock_alert_days,
             }
@@ -217,6 +249,7 @@ def forecast_list(
     }
 
     return {
+        "period": {"from_": anchor_date.isoformat(), "to": end_date.isoformat() if end_date else None},
         "granularity": granularity,
         "horizon": horizon,
         "sales": sales,
