@@ -45,7 +45,7 @@ class OrderSummary(BaseModel):
     total: str
 
 class OrdersListResponse(BaseModel):
-    counts: OrderCounts
+    summary: OrderCounts
     status: OrderStatus
     orders: List[OrderSummary]
 
@@ -57,7 +57,7 @@ class ValidationErrorItem(BaseModel):
 class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
 
-COUNTS = OrderCounts(
+SUMMARY = OrderCounts(
     pending=11,
     processing=5,
     ready_to_ship=5,
@@ -147,4 +147,4 @@ def orders_list(
             if (not date_from or o.date >= date_from) and (not date_to or o.date <= date_to)
         ]
 
-    return OrdersListResponse(counts=COUNTS, status=status, orders=orders)
+    return OrdersListResponse(counts=SUMMARY, status=status, orders=orders)
