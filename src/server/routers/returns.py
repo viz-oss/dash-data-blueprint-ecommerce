@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 router = APIRouter()
+
 PRODUCT_RETURNS = [
     {"id": "prod_1", "name": "Headphones X200", "returns_count": 18, "orders_count": 240, "value_returned": "3200.00"},
     {"id": "prod_3", "name": "Phone Case", "returns_count": 25, "orders_count": 180, "value_returned": "1225.00"},
@@ -50,15 +51,6 @@ class ReturnReason(str, Enum):
     changed_mind = "changed_mind"
     other = "other"
 
-
-class ReturnsKPIs(BaseModel):
-    total_returns: int
-    return_rate_pct: float
-    total_returned_value: str
-    returns_handling_cost: str
-    complaints_count: int
-
-
 class ProductReturnStat(BaseModel):
     id: str
     name: str
@@ -85,19 +77,26 @@ class CommonIssue(BaseModel):
     count: int
 
 
-class DateRange(BaseModel):
-    from_: Optional[date_type] = None
-    to: Optional[date_type] = None
-
-
-class ReturnsResponse(BaseModel):
-    period: DateRange
-    kpis: ReturnsKPIs
+class ReturnsListResponse(BaseModel):
+    date_from: Optional[date_type] = None
+    date_to: Optional[date_type] = None
     top_by_return_count: List[ProductReturnStat]
     top_by_return_rate: List[ProductReturnStat]
     return_reasons: List[ReturnReasonBreakdown]
     top_by_complaints: List[ComplaintProductStat]
     common_issues: List[CommonIssue]
+
+
+class ReturnsSummary(BaseModel):
+    date_from: Optional[date_type] = None
+    date_to: Optional[date_type] = None
+
+    total_returns: int
+    return_rate_pct: float
+    total_returned_value: str
+    returns_handling_cost: str
+    complaints_count: int
+
     recommendations: List[str]
 
 
@@ -121,11 +120,23 @@ def parse_date(value: str, param_name: str) -> date_type:
         )
 
 
+def validate_date_range(date_from: Optional[date_type], date_to: Optional[date_type]) -> None:
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="'from' can not be after 'to'")
+
+
+def enrich_with_rate(products: list) -> list:
+    return [
+        {**p, "return_rate_pct": round(p["returns_count"] / p["orders_count"] * 100, 1)}
+        for p in products
+    ]
+
+
 @router.get(
-    "/",
+    "/list/",
     operation_id="returns_list",
-    summary="Returns and Complaints",
-    response_model=ReturnsResponse,
+    summary="Returns and Complaints - List",
+    response_model=ReturnsListResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def returns_list(
@@ -139,21 +150,12 @@ def returns_list(
 ):
     date_from = parse_date(from_, "from") if from_ else None
     date_to = parse_date(to, "to") if to else None
-    if date_from and date_to and date_from > date_to:
-        raise HTTPException(status_code=422, detail="'from' can not be before 'to'")
+    validate_date_range(date_from, date_to)
 
-    enriched = [
-        {**p, "return_rate_pct": round(p["returns_count"] / p["orders_count"] * 100, 1)}
-        for p in PRODUCT_RETURNS
-    ]
+    enriched = enrich_with_rate(PRODUCT_RETURNS)
 
     top_by_return_count = sorted(enriched, key=lambda p: p["returns_count"], reverse=True)[:limit]
     top_by_return_rate = sorted(enriched, key=lambda p: p["return_rate_pct"], reverse=True)[:limit]
-
-    total_returns = sum(p["returns_count"] for p in PRODUCT_RETURNS)
-    total_returned_value = sum(float(p["value_returned"]) for p in PRODUCT_RETURNS)
-    total_orders = sum(p["orders_count"] for p in PRODUCT_RETURNS)
-    complaints_count = sum(c["complaints_count"] for c in COMPLAINTS_BY_PRODUCT)
 
     total_reasons = sum(RETURN_REASON_COUNTS.values())
     return_reasons = [
@@ -171,21 +173,47 @@ def returns_list(
         reverse=True,
     )[:limit]
 
-    kpis = {
-        "total_returns": total_returns,
-        "return_rate_pct": round(total_returns / total_orders * 100, 1),
-        "total_returned_value": f"{total_returned_value:.2f}",
-        "returns_handling_cost": "1450.00",
-        "complaints_count": complaints_count,
-    }
-
     return {
-        "period": {"from_": date_from, "to": date_to},
-        "kpis": kpis,
+        "date_from": date_from,
+        "date_to": date_to,
         "top_by_return_count": top_by_return_count,
         "top_by_return_rate": top_by_return_rate,
         "return_reasons": return_reasons,
         "top_by_complaints": top_by_complaints,
         "common_issues": COMMON_ISSUES,
+    }
+
+@router.get(
+    "/summary/",
+    operation_id="returns_summary",
+    summary="Returns and Complaints - Summary",
+    response_model=ReturnsSummary,
+    responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
+)
+def returns_summary(
+    from_: Optional[str] = Query(
+        None, alias="from", description="Starting date of the range, format YYYY-MM-DD"
+    ),
+    to: Optional[str] = Query(
+        None, description="Ending date of the range, format YYYY-MM-DD"
+    ),
+):
+    date_from = parse_date(from_, "from") if from_ else None
+    date_to = parse_date(to, "to") if to else None
+    validate_date_range(date_from, date_to)
+
+    total_returns = sum(p["returns_count"] for p in PRODUCT_RETURNS)
+    total_returned_value = sum(float(p["value_returned"]) for p in PRODUCT_RETURNS)
+    total_orders = sum(p["orders_count"] for p in PRODUCT_RETURNS)
+    complaints_count = sum(c["complaints_count"] for c in COMPLAINTS_BY_PRODUCT)
+
+    return {
+        "date_from": date_from,
+        "date_to": date_to,
+        "total_returns": total_returns,
+        "return_rate_pct": round(total_returns / total_orders * 100, 1),
+        "total_returned_value": f"{total_returned_value:.2f}",
+        "returns_handling_cost": "1450.00",
+        "complaints_count": complaints_count,
         "recommendations": RECOMMENDATIONS,
     }
