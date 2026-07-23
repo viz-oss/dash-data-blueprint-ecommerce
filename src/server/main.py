@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
-    dashboard,
     products,
     product,
     finance,
@@ -35,8 +34,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 0. Dashboard
-app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 # 1. Products
 app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(product.router, prefix="/api/product", tags=["product"])
@@ -61,11 +58,8 @@ app.include_router(forecasts.router, prefix="/api/forecasts", tags=["forecasts"]
 # 10. Alerts
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 
-
-@app.get("/api/", operation_id="overview", tags=["index"], summary="List of available resources")
 def api_index():
     return {
-        "dashboard": "/api/dashboard/",
         "products": "/api/products/",
         "product": "/api/product/",
         "finance": "/api/finance/summary/",
