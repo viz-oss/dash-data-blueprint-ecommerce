@@ -147,4 +147,4 @@ def orders_list(
             if (not date_from or o.date >= date_from) and (not date_to or o.date <= date_to)
         ]
 
-    return OrdersListResponse(counts=SUMMARY, status=status, orders=orders)
+    return OrdersListResponse(summary=SUMMARY, status=status, orders=orders)
