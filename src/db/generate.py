@@ -20,8 +20,8 @@ def create_database() -> None:
         CREATE TABLE IF NOT EXISTS Products (
             product_id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            price TEXT NOT NULL CHECK (price >= 0),
-            production_cost TEXT NOT NULL CHECK (production_cost >= 0),
+            rrp TEXT NOT NULL CHECK (rrp >= 0),
+            cost TEXT NOT NULL CHECK (cost >= 0),
             review_avg TEXT,
             review_count INTEGER NOT NULL DEFAULT 0 CHECK (review_count >= 0)
         );
@@ -32,7 +32,6 @@ def create_database() -> None:
         CREATE TABLE IF NOT EXISTS Offer (
             product_id INTEGER PRIMARY KEY,
             stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
-            is_listed INTEGER NOT NULL DEFAULT 1 CHECK (is_listed IN (0, 1)),
             listing_date TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (product_id) REFERENCES products (product_id)
                 ON DELETE CASCADE
@@ -62,7 +61,9 @@ def create_database() -> None:
                 )),
             order_date TEXT NOT NULL DEFAULT (datetime('now')),
             update_date TEXT NOT NULL DEFAULT (datetime('now')),
-            delivery_address TEXT,
+            delivery_city TEXT,
+            delivery_street TEXT,
+            delivery_postal_code TEXT,
             order_total TEXT DEFAULT 0 CHECK (order_total >= 0),
             FOREIGN KEY (customer_id) REFERENCES customers (customer_id)
                 ON DELETE RESTRICT
@@ -74,7 +75,8 @@ def create_database() -> None:
         CREATE TABLE IF NOT EXISTS Order_Details (
             product_id INTEGER NOT NULL,
             order_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL CHECK (quantity > 0), 
+            quantity INTEGER NOT NULL CHECK (quantity > 0),
+            selling_price TEXT NOT NULL CHECK (selling_price >= 0),
             FOREIGN KEY (order_id) REFERENCES orders (order_id)
                 ON DELETE CASCADE,
             FOREIGN KEY (product_id) REFERENCES products (product_id)
