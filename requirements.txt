@@ -1,2 +1,3 @@
 fastapi>=0.115
 uvicorn[standard]>=0.32
+faker>=40.0.0
