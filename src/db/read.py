@@ -117,6 +117,54 @@ class DatabaseReader:
             cur = db.execute(query, params)
             return cur.fetchone()[0]
 
+    def get_order_by_id(self, order_id: int) -> dict | None:
+        with self.connect() as db:
+            cur = db.execute(
+                """
+                SELECT order_id, customer_id, order_status, order_date, update_date,
+                       delivery_city, delivery_street, delivery_postal_code, order_total
+                FROM Orders
+                WHERE order_id = ?
+                """,
+                (order_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return {
+                "order_id": row[0],
+                "customer_id": row[1],
+                "order_status": row[2],
+                "order_date": row[3],
+                "update_date": row[4],
+                "delivery_city": row[5],
+                "delivery_street": row[6],
+                "delivery_postal_code": row[7],
+                "order_total": row[8],
+            }
+
+    def get_order_items(self, order_id: int) -> list[dict]:
+        with self.connect() as db:
+            cur = db.execute(
+                """
+                SELECT od.product_id, p.name, od.quantity, od.selling_price
+                FROM Order_Details od
+                JOIN Products p ON p.product_id = od.product_id
+                WHERE od.order_id = ?
+                """,
+                (order_id,),
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    "product_id": row[0],
+                    "name": row[1],
+                    "quantity": row[2],
+                    "selling_price": row[3],
+                }
+                for row in rows
+            ]
+
     def get_orders_by_status(
         self,
         status: str,

@@ -1,36 +1,20 @@
 from datetime import date as date_type
-from enum import Enum
-from typing import Any, List, Optional
+from pathlib import Path
+from typing import Any, List
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, computed_field
 
+from ...db.read import DatabaseReader
+from .orders import OrderStatus
+
 router = APIRouter()
-
-
-class OrderStatus(str, Enum):
-    pending = "pending"
-    awaiting_payment = "awaiting_payment"
-    payment_failed = "payment_failed"
-    processing = "processing"
-    ready_to_ship = "ready_to_ship"
-    shipped = "shipped"
-    delivered_end = "delivered_end"
-    delivery_failed = "delivery_failed"
-    return_requested = "return_requested"
-    return_accepted = "return_accepted"
-    return_rejected = "return_rejected"
-    returned = "returned"
-    refunded_end = "refunded_end"
-    exchanged_end = "exchanged_end"
-    on_hold = "on_hold"
-    cancelled_end = "cancelled_end"
-    buyer_canceled_end = "buyer_canceled_end"
+DB_PATH = Path(__file__).resolve().parents[3] / "db.sqlite"
+db_reader = DatabaseReader(db_path=str(DB_PATH))
 
 
 class OrderItem(BaseModel):
     product_id: str
     name: str
-    image_url: Optional[str] = None
     quantity: int
     unit_price: str
 
@@ -40,11 +24,17 @@ class OrderItem(BaseModel):
         return f"{self.quantity * float(self.unit_price):.2f}"
 
 
+class Delivery(BaseModel):
+    city: str | None = None
+    street: str | None = None
+    postal_code: str | None = None
+
+
 class OrderDetail(BaseModel):
     id: str
-    number: str
     status: OrderStatus
     date: date_type
+    delivery: Delivery
     items: List[OrderItem]
     total: str
 
@@ -59,40 +49,6 @@ class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
 
 
-ORDER_DETAILS: dict[str, OrderDetail] = {
-    "zam_12345": OrderDetail(
-        id="zam_12345",
-        number="12345",
-        status=OrderStatus.pending,
-        date="2026-07-12",
-        items=[
-            OrderItem(
-                product_id="prod_1",
-                name="Ceramic Mug",
-                image_url="https://example.com/images/prod_1.jpg",
-                quantity=5,
-                unit_price="20.00",
-            ),
-            OrderItem(
-                product_id="prod_2",
-                name="Plate",
-                image_url="https://example.com/images/prod_2.jpg",
-                quantity=4,
-                unit_price="15.00",
-            ),
-            OrderItem(
-                product_id="prod_3",
-                name="Flower Pot",
-                image_url="https://example.com/images/prod_3.jpg",
-                quantity=1,
-                unit_price="25.00",
-            ),
-        ],
-        total="185.00",
-    ),
-}
-
-
 @router.get(
     "/",
     operation_id="order_detail",
@@ -104,14 +60,35 @@ ORDER_DETAILS: dict[str, OrderDetail] = {
     },
 )
 def orders_detail(
-    order_id: str = Query(
+    order_id: int = Query(
         ...,
-        description="Order identifier, e.g. zam_12345",
-        pattern=r"^zam_\d+$",
+        description="Order identifier (order_id)",
+        gt=0,
     ),
 ) -> OrderDetail:
-    order = ORDER_DETAILS.get(order_id)
+    order = db_reader.get_order_by_id(order_id)
     if order is None:
         raise HTTPException(status_code=404, detail=f"Order '{order_id}' was not found")
 
-    return order
+    items = db_reader.get_order_items(order_id)
+
+    return OrderDetail(
+        id=str(order["order_id"]),
+        status=order["order_status"],
+        date=order["order_date"][:10],
+        delivery=Delivery(
+            city=order["delivery_city"],
+            street=order["delivery_street"],
+            postal_code=order["delivery_postal_code"],
+        ),
+        items=[
+            OrderItem(
+                product_id=str(item["product_id"]),
+                name=item["name"],
+                quantity=item["quantity"],
+                unit_price=item["selling_price"],
+            )
+            for item in items
+        ],
+        total=order["order_total"],
+    )
