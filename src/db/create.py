@@ -20,21 +20,11 @@ def create_database() -> None:
         CREATE TABLE IF NOT EXISTS Products (
             product_id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            ean TEXT NOT NULL UNIQUE,
             rrp TEXT NOT NULL CHECK (rrp >= 0),
             cost TEXT NOT NULL CHECK (cost >= 0),
             review_avg TEXT,
             review_count INTEGER NOT NULL DEFAULT 0 CHECK (review_count >= 0)
-        );
-    """)
-
-    # Offer
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Offer (
-            product_id INTEGER PRIMARY KEY,
-            stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
-            listing_date TEXT NOT NULL DEFAULT (datetime('now')),
-            FOREIGN KEY (product_id) REFERENCES products (product_id)
-                ON DELETE CASCADE
         );
     """)
 
@@ -84,7 +74,7 @@ def create_database() -> None:
                 ON DELETE RESTRICT
         );
     """)
-    
+
     # Order_Details
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Order_Details (

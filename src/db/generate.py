@@ -206,29 +206,40 @@ def seed_customers(cursor, n: int) -> list[int]:
         ids.append(cursor.lastrowid)
     return ids
 
+def generate_ean13() -> str:
+    """Generates a random, valid EAN-13 barcode (with correct check digit)."""
+    digits = [random.randint(0, 9) for _ in range(12)]
+    checksum = sum(d * (3 if i % 2 else 1) for i, d in enumerate(digits))
+    check_digit = (10 - checksum % 10) % 10
+    digits.append(check_digit)
+    return "".join(map(str, digits))
 
 def seed_products(cursor, n: int) -> list[int]:
     ids = []
+    used_eans = set()
     for _ in range(n):
         name, category = generate_product_name()
         min_cost, max_cost = CATEGORY_COST_RANGES[category]
         cost = round(random.uniform(min_cost, max_cost), 2)
-        # RRP is always >= cost, typical margin 15-60%
         rrp = round(cost * random.uniform(1.15, 1.6), 2)
 
         review_count = random.randint(0, 500)
         review_avg = round(random.uniform(1.0, 5.0), 2) if review_count > 0 else None
 
+        ean = generate_ean13()
+        while ean in used_eans:
+            ean = generate_ean13()
+        used_eans.add(ean)
+
         cursor.execute(
             """
-            INSERT INTO Products (name, rrp, cost, review_avg, review_count)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO Products (name, ean, rrp, cost, review_avg, review_count)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (name, str(rrp), str(cost), review_avg, review_count),
+            (name, ean, str(rrp), str(cost), review_avg, review_count),
         )
         ids.append(cursor.lastrowid)
     return ids
-
 
 def seed_offer(cursor, product_ids: list[int], coverage: float) -> list[int]:
     """Not every product has to be currently on offer - we sample a subset."""
