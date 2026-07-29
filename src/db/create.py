@@ -38,6 +38,17 @@ def create_database() -> None:
         );
     """)
 
+   # Offer
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Offer (
+            product_id INTEGER PRIMARY KEY,
+            stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+            listing_date TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (product_id) REFERENCES products (product_id)
+                ON DELETE CASCADE
+        );
+    """)
+ 
     # Orders
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Orders (
@@ -46,18 +57,22 @@ def create_database() -> None:
             order_status TEXT NOT NULL DEFAULT 'pending'
                 CHECK (order_status IN (
                     'pending',
+                    'awaiting_payment',
+                    'payment_failed',
                     'processing',
                     'ready_to_ship',
                     'shipped',
-                    'delivered',
+                    'delivered_end',
                     'delivery_failed',
                     'return_requested',
+                    'return_accepted',
+                    'return_rejected',
                     'returned',
-                    'exchange',
+                    'refunded_end',
+                    'exchanged_end',
                     'on_hold',
-                    'cancelled',
-                    'awaiting_payment',
-                    'payment_failed'
+                    'cancelled_end',
+                    'buyer_canceled_end'
                 )),
             order_date TEXT NOT NULL DEFAULT (datetime('now')),
             update_date TEXT NOT NULL DEFAULT (datetime('now')),
@@ -69,7 +84,7 @@ def create_database() -> None:
                 ON DELETE RESTRICT
         );
     """)
-
+    
     # Order_Details
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Order_Details (

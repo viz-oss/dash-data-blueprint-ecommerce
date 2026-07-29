@@ -9,18 +9,22 @@ router = APIRouter()
 
 class OrderStatus(str, Enum):
     pending = "pending"
+    awaiting_payment = "awaiting_payment"
+    payment_failed = "payment_failed"
     processing = "processing"
     ready_to_ship = "ready_to_ship"
     shipped = "shipped"
-    delivered = "delivered"
+    delivered_end = "delivered_end"
     delivery_failed = "delivery_failed"
     return_requested = "return_requested"
+    return_accepted = "return_accepted"
+    return_rejected = "return_rejected"
     returned = "returned"
-    exchange = "exchange"
+    refunded_end = "refunded_end"
+    exchanged_end = "exchanged_end"
     on_hold = "on_hold"
-    cancelled = "cancelled"
-    awaiting_payment = "awaiting_payment"
-    payment_failed = "payment_failed"
+    cancelled_end = "cancelled_end"
+    buyer_canceled_end = "buyer_canceled_end"
 
 
 class OrderItem(BaseModel):

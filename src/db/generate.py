@@ -1,6 +1,7 @@
 import sqlite3
 import random
 from datetime import datetime, timedelta
+from typing import Literal
 
 from faker import Faker
 
@@ -27,8 +28,6 @@ PRODUCT_CATEGORIES = {
     "Cosmetic": ["Nivea Moisturising Cream", "Dior Sauvage Perfume", "L'Oreal Elseve Shampoo", "La Roche-Posay Serum"],
 }
 
-
-# Variants matched to product type - to avoid e.g. "T-shirt 128GB"
 STORAGE_VARIANTS = ["64GB", "128GB", "256GB", "512GB", "1TB"]
 COLOR_VARIANTS = ["Black", "White", "Blue", "Grey", "Red"]
 CLOTHING_SIZE_VARIANTS = ["Size S", "Size M", "Size L", "Size XL"]
@@ -78,37 +77,107 @@ def generate_product_name() -> tuple[str, str]:
     return base_name, category
 
 
-ORDER_STATUSES = [
+OrderStatus = Literal[
+    # A new order has just come in, but it hasn't been fully completed yet.
     "pending",
+    # The customer filled out the order form but hasn't paid for it yet.
+    "awaiting_payment",
+    # The payment failed.
+    "payment_failed",
+    # The order has been paid for and is ready to be processed.
+    "processing",
+    # The order has been packed and is ready for shipping.
+    "ready_to_ship",
+    # The order has been shipped to the customer.
+    "shipped",
+    # The order has been delivered to the customer - END of the success path.
+    "delivered_end",
+    # The delivery attempt failed.
+    "delivery_failed",
+    # The customer has requested a return of the order.
+    "return_requested",
+    # The seller has accepted the return of the order.
+    "return_accepted",
+    # The seller has rejected the return of the order - END.
+    "return_rejected",
+    # The customer has sent the order back to the seller.
+    "returned",
+    # The seller has processed the return and refunded the customer - END.
+    "refunded_end",
+    # The seller has exchanged the order for a new one - END.
+    "exchanged_end",
+    # The seller has put the order on hold due to a payment issue, stock
+    # shortage, or other problem.
+    "on_hold",
+    # The seller has cancelled the order due to a payment issue, stock
+    # shortage, or other problem - END.
+    "cancelled_end",
+    # The customer has cancelled the order - END.
+    "buyer_canceled_end",
+]
+
+ORDER_STATUSES: list[OrderStatus] = [
+    "pending",
+    "awaiting_payment",
+    "payment_failed",
     "processing",
     "ready_to_ship",
     "shipped",
-    "delivered",
+    "delivered_end",
     "delivery_failed",
     "return_requested",
+    "return_accepted",
+    "return_rejected",
     "returned",
-    "exchange",
+    "refunded_end",
+    "exchanged_end",
     "on_hold",
-    "cancelled",
-    "awaiting_payment",
-    "payment_failed",
+    "cancelled_end",
+    "buyer_canceled_end",
 ]
 
-STATUS_UPDATE_DAY_RANGES = {
+STATUS_UPDATE_DAY_RANGES: dict[OrderStatus, tuple[int, int]] = {
     "pending": (0, 1),
     "awaiting_payment": (0, 1),
     "payment_failed": (0, 1),
     "processing": (0, 2),
     "on_hold": (1, 4),
     "ready_to_ship": (1, 3),
-    "cancelled": (0, 2),
+    "cancelled_end": (0, 2),
+    "buyer_canceled_end": (0, 2),
     "shipped": (2, 5),
     "delivery_failed": (3, 7),
-    "delivered": (3, 10),
-    "return_requested": (5, 15),
-    "exchange": (5, 18),
-    "returned": (5, 21),
+    "delivered_end": (3, 10),
+    "return_requested": (10, 14),
+    "return_accepted": (12, 16),
+    "return_rejected": (12, 16),
+    "returned": (14, 20),
+    "refunded_end": (16, 24),
+    "exchanged_end": (10, 18),
 }
+
+
+def get_status_emoji(status: OrderStatus) -> str:
+    emoji = '❓'
+    if status in ['pending', 'awaiting_payment']:
+        emoji = '⏳'
+    elif status == 'processing':
+        emoji = '❗'
+    elif status == 'ready_to_ship':
+        emoji = '⚡'
+    elif status == 'shipped':
+        emoji = '🚚'
+    elif status == 'delivered_end':
+        emoji = '🆗'
+    elif status == 'return_accepted':
+        emoji = '📦'
+    elif status in ['refunded_end', 'exchanged_end']:
+        emoji = '↩️'
+    elif status in ['payment_failed', 'delivery_failed', 'return_requested', 'returned', 'on_hold']:
+        emoji = '‼️'
+    elif status in ['cancelled_end', 'return_rejected', 'buyer_canceled_end']:
+        emoji = '❌'
+    return emoji
 
 
 def random_datetime_between(start: datetime, end: datetime) -> str:
