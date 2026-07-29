@@ -90,6 +90,37 @@ class DatabaseReader:
                 for row in rows
             ]
 
+    def get_orders_by_status(
+        self,
+        status: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[dict]:
+        query = "SELECT order_id, order_status, order_date, order_total FROM Orders WHERE order_status = ?"
+        params: list = [status]
+
+        if date_from:
+            query += " AND date(order_date) >= ?"
+            params.append(date_from)
+        if date_to:
+            query += " AND date(order_date) <= ?"
+            params.append(date_to)
+
+        query += " ORDER BY order_date DESC"
+
+        with self.connect() as db:
+            cur = db.execute(query, params)
+            rows = cur.fetchall()
+            return [
+                {
+                    "order_id": row[0],
+                    "order_status": row[1],
+                    "order_date": row[2],
+                    "order_total": row[3],
+                }
+                for row in rows
+            ]
+
 
 if __name__ == "__main__":
     reader = DatabaseReader()
