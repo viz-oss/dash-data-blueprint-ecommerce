@@ -1,4 +1,4 @@
-import sqlite3
+import sqlite3, json
 from contextlib import contextmanager
 
 
@@ -93,7 +93,7 @@ class DatabaseReader:
 
 if __name__ == "__main__":
     reader = DatabaseReader()
-    print(f"Customers: {len(reader.get_customers())}")
-    print(f"Products: {len(reader.get_products())}")
-    print(f"Offers: {len(reader.get_offers())}")
-    print(f"Orders: {len(reader.get_orders())}")
+    print(f"Customers({len(reader.get_customers())}): {json.dumps(reader.get_customers(), indent=2)}")
+    print(f"Products({len(reader.get_products())}): {json.dumps(reader.get_products(), indent=2)}")
+    print(f"Offers({len(reader.get_offers())}): {json.dumps(reader.get_offers(), indent=2)}")
+    print(f"Orders({len(reader.get_orders())}): {json.dumps(reader.get_orders(), indent=2)}")
