@@ -90,6 +90,33 @@ class DatabaseReader:
                 for row in rows
             ]
 
+    def get_order_status_counts(self) -> dict[str, int]:
+        with self.connect() as db:
+            cur = db.execute(
+                "SELECT order_status, COUNT(*) FROM Orders GROUP BY order_status"
+            )
+            return {status: count for status, count in cur.fetchall()}
+
+    def get_order_count_by_status(
+        self,
+        status: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> int:
+        query = "SELECT COUNT(*) FROM Orders WHERE order_status = ?"
+        params: list = [status]
+
+        if date_from:
+            query += " AND date(order_date) >= ?"
+            params.append(date_from)
+        if date_to:
+            query += " AND date(order_date) <= ?"
+            params.append(date_to)
+
+        with self.connect() as db:
+            cur = db.execute(query, params)
+            return cur.fetchone()[0]
+
     def get_orders_by_status(
         self,
         status: str,

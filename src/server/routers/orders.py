@@ -39,6 +39,7 @@ class OrderSummary(BaseModel):
     total: str
 
 class OrdersListResponse(BaseModel):
+    count: int = Field(description="Number of orders with the specified status, in the specified date range")
     status: OrderStatus
     orders: List[OrderSummary]
 
@@ -61,6 +62,17 @@ def parse_date(value: str, param_name: str) -> date_type:
         )
 
 
+def get_order_count(
+    status: OrderStatus,
+    date_from: Optional[date_type] = None,
+    date_to: Optional[date_type] = None,
+) -> int:
+    return db_reader.get_order_count_by_status(
+        status.value,
+        date_from.isoformat() if date_from else None,
+        date_to.isoformat() if date_to else None,
+    )
+
 
 def get_orders_by_status(
     status: OrderStatus,
@@ -76,7 +88,7 @@ def get_orders_by_status(
         OrderSummary(
             id=str(row["order_id"]),
             status=row["order_status"],
-            date=row["order_date"][:10],
+            date=row["order_date"][:10], 
             total=row["order_total"],
         )
         for row in rows
@@ -112,5 +124,6 @@ def orders_list(
         raise HTTPException(status_code=422, detail="'from' cannot be later than 'to'")
 
     orders = get_orders_by_status(status, date_from, date_to)
+    count = get_order_count(status, date_from, date_to)
 
-    return OrdersListResponse(status=status, orders=orders)
+    return OrdersListResponse(count=count, status=status, orders=orders)
