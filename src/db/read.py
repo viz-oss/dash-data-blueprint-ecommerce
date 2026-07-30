@@ -2,17 +2,22 @@ import sqlite3, json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
+# (delivered_end, return_rejected, exchanged_end)
 class DatabaseReader:
     EXCLUDED_SALE_STATUSES = (
         "pending",
+        "processing",
+        "shipped",
         "awaiting_payment",
         "payment_failed",
+        "on_hold",
         "cancelled_end",
         "buyer_canceled_end",
         "returned",
         "refunded_end",
         "return_accepted",
         "return_requested",
+        "delivery_failed",
     )
 
     def __init__(self, db_path: str = "db.sqlite") -> None:
