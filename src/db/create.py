@@ -66,9 +66,19 @@ def create_database() -> None:
                 )),
             order_date TEXT NOT NULL DEFAULT (datetime('now')),
             update_date TEXT NOT NULL DEFAULT (datetime('now')),
+            invoice INTEGER NOT NULL DEFAULT 0 CHECK (invoice IN (0, 1)),
+            -- gdy invoice = 1 (faktura na firmę): first_name = nazwa firmy, last_name = NIP
+            -- gdy invoice = 0 (paragon / os. prywatna): zwykłe imię i nazwisko odbiorcy
+            delivery_first_name TEXT,
+            delivery_last_name TEXT,
+            delivery_phone TEXT,
+            delivery_country_code TEXT NOT NULL DEFAULT 'PL',
             delivery_city TEXT,
             delivery_street TEXT,
             delivery_postal_code TEXT,
+            courier TEXT
+                CHECK (courier IN ('DHL', 'InPost', 'DPD', 'GLS', 'Pocztex', 'UPS', 'FedEx', 'Orlen Paczka')),
+            delivery_cost TEXT DEFAULT 0 CHECK (delivery_cost >= 0),
             order_total TEXT DEFAULT 0 CHECK (order_total >= 0),
             FOREIGN KEY (customer_id) REFERENCES customers (customer_id)
                 ON DELETE RESTRICT

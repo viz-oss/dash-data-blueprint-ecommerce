@@ -7,9 +7,28 @@ from faker import Faker
 
 fake = Faker("en_GB")
 
+COUNTRY_LOCALES = {
+    "GB": "en_GB",
+    "PL": "pl_PL",
+    "DE": "de_DE",
+    "FR": "fr_FR",
+    "NL": "nl_NL",
+    "IE": "en_IE",
+}
+COUNTRY_WEIGHTS = {
+    "GB": 70,
+    "PL": 8,
+    "DE": 8,
+    "FR": 6,
+    "NL": 5,
+    "IE": 3,
+}
+
+FAKERS_BY_COUNTRY = {code: Faker(locale) for code, locale in COUNTRY_LOCALES.items()}
+
 N_CUSTOMERS = 1000
 N_PRODUCTS = 80
-OFFER_COVERAGE = 0.85       
+OFFER_COVERAGE = 0.85
 N_ORDERS = 2000
 MAX_ITEMS_PER_ORDER = 4
 
@@ -44,9 +63,9 @@ CATEGORY_VARIANTS = {
     "Coffee Machine": COLOR_VARIANTS,
     "Vacuum Cleaner": COLOR_VARIANTS,
     "Bicycle": COLOR_VARIANTS + ["Frame Size S", "Frame Size M", "Frame Size L"],
-    "Book": [],        
-    "Toy": [],        
-    "Cosmetic": [],   
+    "Book": [],
+    "Toy": [],
+    "Cosmetic": [],
 }
 
 
@@ -63,6 +82,22 @@ CATEGORY_COST_RANGES = {
     "Book": (3, 16),
     "Toy": (4, 80),
     "Cosmetic": (3, 70),
+}
+
+# Kurierzy dopuszczeni przez CHECK w tabeli Orders, z wagami popularności (PL rynek)
+COURIERS = ["InPost", "DHL", "DPD", "GLS", "Pocztex", "UPS", "FedEx", "Orlen Paczka"]
+COURIER_WEIGHTS = [30, 20, 15, 10, 10, 5, 5, 5]
+
+# Koszt dostawy zależny (z grubsza) od kuriera; realistyczne widełki PLN
+COURIER_COST_RANGES = {
+    "InPost": (0, 16),
+    "DHL": (10, 25),
+    "DPD": (10, 24),
+    "GLS": (10, 24),
+    "Pocztex": (8, 20),
+    "UPS": (15, 40),
+    "FedEx": (15, 45),
+    "Orlen Paczka": (0, 13),
 }
 
 
@@ -206,6 +241,7 @@ def seed_customers(cursor, n: int) -> list[int]:
         ids.append(cursor.lastrowid)
     return ids
 
+
 def generate_ean13() -> str:
     """Generates a random, valid EAN-13 barcode (with correct check digit)."""
     digits = [random.randint(0, 9) for _ in range(12)]
@@ -213,6 +249,18 @@ def generate_ean13() -> str:
     check_digit = (10 - checksum % 10) % 10
     digits.append(check_digit)
     return "".join(map(str, digits))
+
+
+def generate_nip() -> str:
+    """Generuje losowy, poprawny (z sumą kontrolną) polski NIP."""
+    weights = [6, 5, 7, 2, 3, 4, 5, 6, 7]
+    digits = [random.randint(0, 9) for _ in range(9)]
+    checksum = sum(w * d for w, d in zip(weights, digits)) % 11
+    if checksum == 10:
+        return generate_nip()
+    digits.append(checksum)
+    return "".join(map(str, digits))
+
 
 def seed_products(cursor, n: int) -> list[int]:
     ids = []
@@ -240,6 +288,7 @@ def seed_products(cursor, n: int) -> list[int]:
         )
         ids.append(cursor.lastrowid)
     return ids
+
 
 def seed_offer(cursor, product_ids: list[int], coverage: float) -> list[int]:
     """Not every product has to be currently on offer - we sample a subset."""
@@ -288,28 +337,63 @@ def seed_orders_with_details(
             update_earliest = update_latest
         update_date = random_datetime_between(update_earliest, update_latest)
 
-        address = fake.address() if hasattr(fake, "address") else None
-        delivery_city = fake.city()
-        delivery_street = fake.street_address()
-        delivery_postal_code = fake.postcode()
+        # Kraj dostawy, a za nim spójny lokalnie faker (adres/telefon/imię
+        # muszą pasować do kraju, nie mogą zostać "brytyjskie" dla PL/DE itd.)
+        delivery_country_code = random.choices(
+            list(COUNTRY_WEIGHTS.keys()), weights=list(COUNTRY_WEIGHTS.values()), k=1
+        )[0]
+        local_fake = FAKERS_BY_COUNTRY[delivery_country_code]
+
+        delivery_city = local_fake.city()
+        delivery_street = local_fake.street_address()
+        delivery_postal_code = local_fake.postcode()
+        delivery_phone = local_fake.phone_number()
+
+        courier = random.choices(COURIERS, weights=COURIER_WEIGHTS, k=1)[0]
+        min_cost, max_cost = COURIER_COST_RANGES[courier]
+        delivery_cost = round(random.uniform(min_cost, max_cost), 2)
+        # przesyłki zagraniczne są droższe
+        if delivery_country_code != "PL":
+            delivery_cost = round(delivery_cost + random.uniform(15, 40), 2)
+
+        # ok. 35% zamówień z fakturą
+        invoice = 1 if random.random() < 0.35 else 0
+
+        # invoice = 1 (faktura na firmę): first_name = nazwa firmy, last_name = NIP
+        # invoice = 0 (paragon / os. prywatna): zwykłe imię i nazwisko odbiorcy
+        if invoice:
+            delivery_first_name = local_fake.company()
+            delivery_last_name = generate_nip()
+        else:
+            delivery_first_name = local_fake.first_name()
+            delivery_last_name = local_fake.last_name()
 
         cursor.execute(
             """
             INSERT INTO Orders (
-                customer_id, order_status, order_date, update_date,
-                delivery_city, delivery_street, delivery_postal_code, order_total
+                customer_id, order_status, order_date, update_date, invoice,
+                delivery_first_name, delivery_last_name, delivery_phone, delivery_country_code,
+                delivery_city, delivery_street, delivery_postal_code,
+                courier, delivery_cost, order_total
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 customer_id,
                 status,
                 order_date,
                 update_date,
+                invoice,
+                delivery_first_name,
+                delivery_last_name,
+                delivery_phone,
+                delivery_country_code,
                 delivery_city,
                 delivery_street,
                 delivery_postal_code,
-                "0", 
+                courier,
+                str(delivery_cost),
+                "0",
             ),
         )
         order_id = cursor.lastrowid

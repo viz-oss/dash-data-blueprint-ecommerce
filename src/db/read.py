@@ -1,7 +1,6 @@
 import sqlite3, json
 from contextlib import contextmanager
 
-
 class DatabaseReader:
     def __init__(self, db_path: str = "db.sqlite") -> None:
         self.db_path = db_path
@@ -122,7 +121,9 @@ class DatabaseReader:
             cur = db.execute(
                 """
                 SELECT order_id, customer_id, order_status, order_date, update_date,
-                       delivery_city, delivery_street, delivery_postal_code, order_total
+                       invoice, delivery_first_name, delivery_last_name, delivery_phone,
+                       delivery_country_code, delivery_city, delivery_street,
+                       delivery_postal_code, courier, delivery_cost, order_total
                 FROM Orders
                 WHERE order_id = ?
                 """,
@@ -137,10 +138,17 @@ class DatabaseReader:
                 "order_status": row[2],
                 "order_date": row[3],
                 "update_date": row[4],
-                "delivery_city": row[5],
-                "delivery_street": row[6],
-                "delivery_postal_code": row[7],
-                "order_total": row[8],
+                "invoice": row[5],
+                "delivery_first_name": row[6],
+                "delivery_last_name": row[7],
+                "delivery_phone": row[8],
+                "delivery_country_code": row[9],
+                "delivery_city": row[10],
+                "delivery_street": row[11],
+                "delivery_postal_code": row[12],
+                "courier": row[13],
+                "delivery_cost": row[14],
+                "order_total": row[15],
             }
 
     def get_order_items(self, order_id: int) -> list[dict]:
