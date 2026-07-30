@@ -1,7 +1,20 @@
 import sqlite3, json
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 
 class DatabaseReader:
+    EXCLUDED_SALE_STATUSES = (
+        "pending",
+        "awaiting_payment",
+        "payment_failed",
+        "cancelled_end",
+        "buyer_canceled_end",
+        "returned",
+        "refunded_end",
+        "return_accepted",
+        "return_requested",
+    )
+
     def __init__(self, db_path: str = "db.sqlite") -> None:
         self.db_path = db_path
 
@@ -203,6 +216,124 @@ class DatabaseReader:
                 }
                 for row in rows
             ]
+
+    def get_product_sales_stats(self) -> list[dict]:
+        """Suma sprzedanych sztuk, przychodu i marży per produkt (tylko realna sprzedaż,
+        czyli zamówienia które NIE mają statusu z EXCLUDED_SALE_STATUSES)."""
+        excluded = self.EXCLUDED_SALE_STATUSES
+        placeholders = ",".join("?" * len(excluded))
+        query = f"""
+            SELECT
+                od.product_id,
+                p.name,
+                SUM(od.quantity) AS total_quantity,
+                SUM(od.quantity * od.selling_price) AS total_revenue,
+                SUM(od.quantity * (od.selling_price - p.cost)) AS total_margin
+            FROM Order_Details od
+            JOIN Orders o ON o.order_id = od.order_id
+            JOIN Products p ON p.product_id = od.product_id
+            WHERE o.order_status NOT IN ({placeholders})
+            GROUP BY od.product_id, p.name
+        """
+
+        with self.connect() as db:
+            cur = db.execute(query, excluded)
+            rows = cur.fetchall()
+
+        return [
+            {
+                "product_id": row[0],
+                "name": row[1],
+                "total_quantity": row[2] or 0,
+                "total_revenue": row[3] or 0.0,
+                "total_margin": row[4] or 0.0,
+            }
+            for row in rows
+        ]
+
+    def get_product_growth_stats(self, recent_days: int = 30) -> list[dict]:
+        now = datetime.now()
+        recent_start = (now - timedelta(days=recent_days)).strftime("%Y-%m-%d")
+        previous_start = (now - timedelta(days=2 * recent_days)).strftime("%Y-%m-%d")
+
+        excluded = self.EXCLUDED_SALE_STATUSES
+        placeholders = ",".join("?" * len(excluded))
+        query = f"""
+            SELECT
+                od.product_id,
+                p.name,
+                SUM(CASE WHEN date(o.order_date) >= date(?) THEN od.quantity ELSE 0 END) AS recent_quantity,
+                SUM(CASE WHEN date(o.order_date) >= date(?) AND date(o.order_date) < date(?)
+                         THEN od.quantity ELSE 0 END) AS previous_quantity
+            FROM Order_Details od
+            JOIN Orders o ON o.order_id = od.order_id
+            JOIN Products p ON p.product_id = od.product_id
+            WHERE o.order_status NOT IN ({placeholders})
+              AND date(o.order_date) >= date(?)
+            GROUP BY od.product_id, p.name
+        """
+        params = [recent_start, previous_start, recent_start, *excluded, previous_start]
+
+        with self.connect() as db:
+            cur = db.execute(query, params)
+            rows = cur.fetchall()
+
+        result = []
+        for product_id, name, recent_qty, previous_qty in rows:
+            recent_qty = recent_qty or 0
+            previous_qty = previous_qty or 0
+            if previous_qty > 0:
+                growth_rate = (recent_qty - previous_qty) / previous_qty
+            elif recent_qty > 0:
+                growth_rate = 1.0  # nowy, nagły popyt bez punktu odniesienia -> maks. growth
+            else:
+                growth_rate = 0.0
+            result.append(
+                {
+                    "product_id": product_id,
+                    "name": name,
+                    "recent_quantity": recent_qty,
+                    "previous_quantity": previous_qty,
+                    "growth_rate": round(growth_rate, 4),
+                }
+            )
+        return result
+
+    def get_product_rating_stats(self, min_votes: int = 20) -> list[dict]:
+        """Ranking ocen z wygładzeniem bayesowskim.
+
+        Produkt z mało opiniami ma wynik ciągnięty w stronę średniej globalnej,
+        żeby jedna 5-gwiazdkowa opinia nie biła produktu z 400 opiniami 4.9.
+        """
+        with self.connect() as db:
+            cur = db.execute(
+                "SELECT product_id, name, review_avg, review_count FROM Products WHERE review_count > 0"
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            return []
+
+        parsed_rows = [
+            (product_id, name, float(review_avg), int(review_count))
+            for product_id, name, review_avg, review_count in rows
+        ]
+
+        global_avg = sum(review_avg for _, _, review_avg, _ in parsed_rows) / len(parsed_rows)
+
+        result = []
+        for product_id, name, review_avg, review_count in parsed_rows:
+            weighted = (review_count * review_avg + min_votes * global_avg) / (review_count + min_votes)
+            result.append(
+                {
+                    "product_id": product_id,
+                    "name": name,
+                    "review_avg": review_avg,
+                    "review_count": review_count,
+                    "weighted_rating": round(weighted, 3),
+                }
+            )
+        return result
 
 
 if __name__ == "__main__":
