@@ -2,7 +2,6 @@ import sqlite3, json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
-# (delivered_end, return_rejected, exchanged_end)
 class DatabaseReader:
     EXCLUDED_SALE_STATUSES = (
         "pending",
@@ -222,11 +221,21 @@ class DatabaseReader:
                 for row in rows
             ]
 
-    def get_product_sales_stats(self) -> list[dict]:
-        """Suma sprzedanych sztuk, przychodu i marży per produkt (tylko realna sprzedaż,
-        czyli zamówienia które NIE mają statusu z EXCLUDED_SALE_STATUSES)."""
+    def get_product_sales_stats(
+        self,
+        from_: str | None = None,
+        to: str | None = None,
+    ) -> list[dict]:
+        """Sum of units sold, revenue and margin per product (real sales only,
+        i.e. orders that do NOT have a status from EXCLUDED_SALE_STATUSES).
+
+        `from_` / `to` (format 'YYYY-MM-DD') restrict the range to orders
+        placed within that interval (both bounds inclusive). Either bound can
+        be omitted independently.
+        """
         excluded = self.EXCLUDED_SALE_STATUSES
         placeholders = ",".join("?" * len(excluded))
+
         query = f"""
             SELECT
                 od.product_id,
@@ -238,11 +247,20 @@ class DatabaseReader:
             JOIN Orders o ON o.order_id = od.order_id
             JOIN Products p ON p.product_id = od.product_id
             WHERE o.order_status NOT IN ({placeholders})
-            GROUP BY od.product_id, p.name
         """
+        params: list = list(excluded)
+
+        if from_:
+            query += " AND date(o.order_date) >= date(?)"
+            params.append(from_)
+        if to:
+            query += " AND date(o.order_date) <= date(?)"
+            params.append(to)
+
+        query += " GROUP BY od.product_id, p.name"
 
         with self.connect() as db:
-            cur = db.execute(query, excluded)
+            cur = db.execute(query, params)
             rows = cur.fetchall()
 
         return [
@@ -256,10 +274,52 @@ class DatabaseReader:
             for row in rows
         ]
 
-    def get_product_growth_stats(self, recent_days: int = 30) -> list[dict]:
-        now = datetime.now()
-        recent_start = (now - timedelta(days=recent_days)).strftime("%Y-%m-%d")
-        previous_start = (now - timedelta(days=2 * recent_days)).strftime("%Y-%m-%d")
+    def get_product_growth_stats(
+        self,
+        recent_days: int = 30,
+        from_: str | None = None,
+        to: str | None = None,
+    ) -> list[dict]:
+        """Compares sales in the 'recent' window against the 'previous' window
+        (same length, immediately preceding 'recent').
+
+        The 'recent' window is anchored on whatever `from_`/`to` are given:
+        - both given: recent = [from_, to]
+        - only `from_` given: recent = [from_, today]
+        - only `to` given: recent = [to - recent_days, to]
+        - neither given: recent = [today - recent_days, today] (old default)
+
+        The 'previous' window is always the same length, immediately before
+        the recent window's start.
+
+        `growth_rate` is a MULTIPLIER, not a percentage delta:
+        - previous_quantity=10, recent_quantity=40 -> growth_rate=4.0 ("x4")
+        - previous_quantity=10, recent_quantity=10 -> growth_rate=1.0 (no change)
+        - previous_quantity=10, recent_quantity=0  -> growth_rate=0.0 (dropped to zero)
+        - previous_quantity=0 (no baseline at all) -> growth_rate=None
+          (there's nothing to compare against, regardless of recent_quantity,
+          so we don't invent a number - callers must handle None explicitly)
+        """
+        if to:
+            d_to = datetime.strptime(to, "%Y-%m-%d")
+        else:
+            d_to = datetime.now()
+
+        if from_:
+            d_from = datetime.strptime(from_, "%Y-%m-%d")
+        elif to:
+            # only `to` given -> look back recent_days from it
+            d_from = d_to - timedelta(days=recent_days)
+        else:
+            # neither given -> old default behaviour, last recent_days from now
+            d_from = d_to - timedelta(days=recent_days)
+
+        recent_start = d_from.strftime("%Y-%m-%d")
+        recent_end = d_to.strftime("%Y-%m-%d")
+
+        window_days = max((d_to - d_from).days, 1)
+        previous_start = (d_from - timedelta(days=window_days)).strftime("%Y-%m-%d")
+        previous_end = recent_start
 
         excluded = self.EXCLUDED_SALE_STATUSES
         placeholders = ",".join("?" * len(excluded))
@@ -267,7 +327,8 @@ class DatabaseReader:
             SELECT
                 od.product_id,
                 p.name,
-                SUM(CASE WHEN date(o.order_date) >= date(?) THEN od.quantity ELSE 0 END) AS recent_quantity,
+                SUM(CASE WHEN date(o.order_date) >= date(?) AND date(o.order_date) <= date(?)
+                         THEN od.quantity ELSE 0 END) AS recent_quantity,
                 SUM(CASE WHEN date(o.order_date) >= date(?) AND date(o.order_date) < date(?)
                          THEN od.quantity ELSE 0 END) AS previous_quantity
             FROM Order_Details od
@@ -275,9 +336,15 @@ class DatabaseReader:
             JOIN Products p ON p.product_id = od.product_id
             WHERE o.order_status NOT IN ({placeholders})
               AND date(o.order_date) >= date(?)
+              AND date(o.order_date) <= date(?)
             GROUP BY od.product_id, p.name
         """
-        params = [recent_start, previous_start, recent_start, *excluded, previous_start]
+        params = [
+            recent_start, recent_end,
+            previous_start, recent_start,
+            *excluded,
+            previous_start, recent_end,
+        ]
 
         with self.connect() as db:
             cur = db.execute(query, params)
@@ -288,27 +355,35 @@ class DatabaseReader:
             recent_qty = recent_qty or 0
             previous_qty = previous_qty or 0
             if previous_qty > 0:
-                growth_rate = (recent_qty - previous_qty) / previous_qty
-            elif recent_qty > 0:
-                growth_rate = 1.0  # nowy, nagły popyt bez punktu odniesienia -> maks. growth
+                # mnożnik sprzedaży: 10 -> 40 daje growth_rate = 4.0 (czyli "x4")
+                growth_rate = round(recent_qty / previous_qty, 4)
             else:
-                growth_rate = 0.0
+                # brak sprzedaży w oknie poprzednim -> nie ma punktu odniesienia,
+                # więc nie da się policzyć realnego wzrostu. None zamiast
+                # sztywnej wartości (np. 1.0), żeby nie mieszać "brak danych"
+                # z "brak wzrostu".
+                growth_rate = None
             result.append(
                 {
                     "product_id": product_id,
                     "name": name,
                     "recent_quantity": recent_qty,
                     "previous_quantity": previous_qty,
-                    "growth_rate": round(growth_rate, 4),
+                    "growth_rate": growth_rate,
                 }
             )
         return result
 
-    def get_product_rating_stats(self, min_votes: int = 20) -> list[dict]:
-        """Ranking ocen z wygładzeniem bayesowskim.
+    def get_product_rating_stats(self, min_votes: int = 10) -> list[dict]:
+        """Rating ranking with Bayesian smoothing.
 
-        Produkt z mało opiniami ma wynik ciągnięty w stronę średniej globalnej,
-        żeby jedna 5-gwiazdkowa opinia nie biła produktu z 400 opiniami 4.9.
+        A product with few reviews has its score pulled toward the global
+        average, so a single 5-star review doesn't outrank a product with
+        400 reviews averaging 4.9.
+
+        Note: the Products table doesn't store individual review dates (only
+        aggregate review_avg/review_count), so this ranking does NOT support
+        `from`/`to` filtering.
         """
         with self.connect() as db:
             cur = db.execute(
