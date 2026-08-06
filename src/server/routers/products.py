@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Optional
 from enum import Enum
 from datetime import date
 from fastapi import APIRouter, Query, HTTPException
@@ -14,7 +14,7 @@ DESCRIPTIONS = {
     "sales": "ranking by number of units sold",
     "revenue": "ranking by generated revenue",
     "margin": "ranking by margin / profit",
-    "growth": "ranking by sales growth rate",
+    "growth": "ranking by sales growth rate (products with no comparison period are listed separately, marked is_new, sorted by recent units sold)",
     "rating": "ranking by average customer rating",
 }
 
@@ -57,7 +57,8 @@ class Product(BaseModel):
     id: str
     name: str
     position: int
-    score: float
+    score: Optional[float] = None
+    is_new: bool = False
 
 
 class ProductsResponse(BaseModel):
@@ -138,8 +139,28 @@ def _get_growth_ranking(
     stats = reader.get_product_growth_stats(
         recent_days=GROWTH_WINDOW_DAYS, from_=date_from, to=date_to
     )
-    ranked_stats = [item for item in stats if item["growth_rate"] is not None]
-    return _rank(ranked_stats, "growth_rate", order_by)
+    with_comparison = [item for item in stats if item["growth_rate"] is not None]
+    ranked = _rank(with_comparison, "growth_rate", order_by)
+    new_products = [
+        item for item in stats
+        if item["growth_rate"] is None and item["recent_quantity"] > 0
+    ]
+    new_products.sort(key=lambda item: item["recent_quantity"], reverse=True)
+
+    next_position = len(ranked) + 1
+    for item in new_products:
+        ranked.append(
+            {
+                "id": _to_product_id(item["product_id"]),
+                "name": item["name"],
+                "position": next_position,
+                "score": None,
+                "is_new": True,
+            }
+        )
+        next_position += 1
+
+    return ranked
 
 
 def _get_rating_ranking(

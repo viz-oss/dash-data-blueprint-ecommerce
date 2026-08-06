@@ -19,6 +19,13 @@ class DatabaseReader:
         "delivery_failed",
     )
 
+    RETURN_STATUSES = (
+        "returned",
+        "return_accepted",
+        "return_requested",
+        "refunded_end",
+    )
+
     def __init__(self, db_path: str = "db.sqlite") -> None:
         self.db_path = db_path
 
@@ -355,13 +362,8 @@ class DatabaseReader:
             recent_qty = recent_qty or 0
             previous_qty = previous_qty or 0
             if previous_qty > 0:
-                # mnożnik sprzedaży: 10 -> 40 daje growth_rate = 4.0 (czyli "x4")
                 growth_rate = round(recent_qty / previous_qty, 4)
             else:
-                # brak sprzedaży w oknie poprzednim -> nie ma punktu odniesienia,
-                # więc nie da się policzyć realnego wzrostu. None zamiast
-                # sztywnej wartości (np. 1.0), żeby nie mieszać "brak danych"
-                # z "brak wzrostu".
                 growth_rate = None
             result.append(
                 {
@@ -375,16 +377,6 @@ class DatabaseReader:
         return result
 
     def get_product_rating_stats(self, min_votes: int = 10) -> list[dict]:
-        """Rating ranking with Bayesian smoothing.
-
-        A product with few reviews has its score pulled toward the global
-        average, so a single 5-star review doesn't outrank a product with
-        400 reviews averaging 4.9.
-
-        Note: the Products table doesn't store individual review dates (only
-        aggregate review_avg/review_count), so this ranking does NOT support
-        `from`/`to` filtering.
-        """
         with self.connect() as db:
             cur = db.execute(
                 "SELECT product_id, name, review_avg, review_count FROM Products WHERE review_count > 0"
@@ -414,6 +406,68 @@ class DatabaseReader:
                 }
             )
         return result
+    
+    def get_product_by_id(self, product_id: int) -> dict | None:
+        with self.connect() as db:
+            cur = db.execute(
+                """
+                SELECT product_id, name, rrp, cost, review_avg, review_count
+                FROM Products
+                WHERE product_id = ?
+                """,
+                (product_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return {
+            "product_id": row[0],
+            "name": row[1],
+            "rrp": float(row[2]) if row[2] is not None else 0.0,
+            "cost": float(row[3]) if row[3] is not None else 0.0,
+            "review_avg": float(row[4]) if row[4] is not None else 0.0,
+            "review_count": int(row[5]) if row[5] is not None else 0,
+        }
+
+    def get_product_stock(self, product_id: int) -> int:
+        with self.connect() as db:
+            cur = db.execute(
+                "SELECT SUM(stock_quantity) FROM Offer WHERE product_id = ?",
+                (product_id,),
+            )
+            total = cur.fetchone()[0]
+        return total or 0
+
+    def get_product_return_rate(self, product_id: int) -> float:
+        """Share of this product's order lines that ended up in a
+        return-related status (RETURN_STATUSES), out of all order lines
+        ever placed for this product (any status)."""
+        with self.connect() as db:
+            cur = db.execute(
+                """
+                SELECT COUNT(*)
+                FROM Order_Details od
+                WHERE od.product_id = ?
+                """,
+                (product_id,),
+            )
+            total = cur.fetchone()[0] or 0
+            if total == 0:
+                return 0.0
+
+            placeholders = ",".join("?" * len(self.RETURN_STATUSES))
+            cur = db.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM Order_Details od
+                JOIN Orders o ON o.order_id = od.order_id
+                WHERE od.product_id = ? AND o.order_status IN ({placeholders})
+                """,
+                (product_id, *self.RETURN_STATUSES),
+            )
+            returned = cur.fetchone()[0] or 0
+
+        return round(returned / total, 4)
 
 
 if __name__ == "__main__":
