@@ -57,7 +57,8 @@ class Product(BaseModel):
     id: str
     name: str
     position: int
-    score: Optional[str] = None
+    score: Optional[float] = None
+    note: Optional[str] = None
     listing_date: Optional[str] = None
 
 
@@ -97,13 +98,6 @@ def _validate_date_range(date_from: date | None, date_to: date | None) -> None:
         raise HTTPException(status_code=422, detail="from must be <= to")
 
 
-def _format_score(score: Any) -> str:
-    """Scores can be a numeric value (rounded) or a free-text description
-    (e.g. for growth ranking without a comparison period) - normalize both
-    to str so they fit the same response field."""
-    return score if isinstance(score, str) else str(score)
-
-
 def _rank(items: list[dict], score_key: str, order_by: OrderDirection) -> list[dict]:
     """Sorts by score_key (descending for 'desc', ascending for 'asc'), assigns
     positions 1..n, and attaches each product's listing_date (from Offer) -
@@ -116,6 +110,7 @@ def _rank(items: list[dict], score_key: str, order_by: OrderDirection) -> list[d
             "name": item["name"],
             "position": position,
             "score": round(item[score_key], 4),
+            "note": None,
             "listing_date": reader.get_product_listing_date(item["product_id"]),
         }
         for position, item in enumerate(ordered, start=1)
@@ -166,7 +161,8 @@ def _get_growth_ranking(
                 "id": _to_product_id(item["product_id"]),
                 "name": item["name"],
                 "position": next_position,
-                "score": (
+                "score": None,
+                "note": (
                     "No sales in the previous period to compare against - "
                     f"ranked by recent units sold instead ({item['recent_quantity']} units sold)."
                 ),
@@ -260,6 +256,7 @@ RANKING_BUILDERS = {
     summary="Product Rankings - List",
     description=_build_endpoint_description(),
     response_model=ProductsResponse,
+    response_model_exclude_none=True,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def products_list(
@@ -282,13 +279,9 @@ def products_list(
         to.isoformat() if to else None,
         order_by,
     )
-    products = products[:limit]
-    for product in products:
-        product["score"] = _format_score(product["score"])
-
     return {
         "type": type,
-        "products": products,
+        "products": products[:limit],
     }
 
 
@@ -297,6 +290,7 @@ def products_list(
     operation_id="products_summary",
     summary="Product Rankings - Summary",
     response_model=ProductsSummary,
+    response_model_exclude_none=True,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
 def products_summary(
@@ -316,8 +310,6 @@ def products_summary(
     total_products = len(ranking)
     total_score = round(sum(p["score"] for p in ranking), 2)
     top_products = ranking[:top]
-    for product in top_products:
-        product["score"] = _format_score(product["score"])
 
     return {
         "total_products": total_products,
