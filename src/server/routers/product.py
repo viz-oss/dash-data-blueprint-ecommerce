@@ -20,6 +20,18 @@ reader = DatabaseReader()
 class RankingPosition(BaseModel):
     position: int
     value: Optional[float] = None
+    listing_date: Optional[str] = None
+
+
+def _find_position(ranking: list[dict], product_str_id: str) -> RankingPosition:
+    for item in ranking:
+        if item["id"] == product_str_id:
+            return RankingPosition(
+                position=item["position"],
+                value=item.get("score"),
+                listing_date=item.get("listing_date"),
+            )
+    return RankingPosition(position=len(ranking) + 1, value=None, listing_date=None)
 
 
 class SalesSummary(BaseModel):
@@ -46,6 +58,7 @@ class ProductDetail(BaseModel):
     price: str
     cost: str
     stock: int
+    listing_date: Optional[str] = None
     image_url: str
     overall_score: float
     rankings: Rankings
@@ -189,6 +202,7 @@ def products_detail(id: str = Query(..., description="Product id, e.g. prod_123"
         "price": f"{float(product['rrp']):.2f}",
         "cost": f"{float(product['cost']):.2f}",
         "stock": stock,
+        "listing_date": reader.get_product_listing_date(product_id),
         "image_url": f"https://example.com/images/{str_id}.jpg",
         "overall_score": overall_score,
         "rankings": {

@@ -375,6 +375,19 @@ class DatabaseReader:
                 }
             )
         return result
+    
+    def get_product_listing_date(self, product_id: int) -> str | None:
+        with self.connect() as db:
+            cur = db.execute(
+                """
+                SELECT MIN(listing_date)
+                FROM Offer
+                WHERE product_id = ? AND stock_quantity > 0
+                """,
+                (product_id,),
+            )
+            row = cur.fetchone()
+        return row[0] if row and row[0] is not None else None
 
     def get_product_rating_stats(self, min_votes: int = 10) -> list[dict]:
         with self.connect() as db:

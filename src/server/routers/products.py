@@ -14,7 +14,7 @@ DESCRIPTIONS = {
     "sales": "ranking by number of units sold",
     "revenue": "ranking by generated revenue",
     "margin": "ranking by margin / profit",
-    "growth": "ranking by sales growth rate (products with no comparison period are listed separately, marked is_new, sorted by recent units sold)",
+    "growth": "ranking by sales growth rate (products with no comparison period are listed separately, sorted by recent units sold)",
     "rating": "ranking by average customer rating",
 }
 
@@ -57,8 +57,8 @@ class Product(BaseModel):
     id: str
     name: str
     position: int
-    score: Optional[float] = None
-    is_new: bool = False
+    score: Optional[str] = None
+    listing_date: Optional[str] = None
 
 
 class ProductsResponse(BaseModel):
@@ -97,8 +97,17 @@ def _validate_date_range(date_from: date | None, date_to: date | None) -> None:
         raise HTTPException(status_code=422, detail="from must be <= to")
 
 
+def _format_score(score: Any) -> str:
+    """Scores can be a numeric value (rounded) or a free-text description
+    (e.g. for growth ranking without a comparison period) - normalize both
+    to str so they fit the same response field."""
+    return score if isinstance(score, str) else str(score)
+
+
 def _rank(items: list[dict], score_key: str, order_by: OrderDirection) -> list[dict]:
-    """Sorts by score_key (descending for 'desc', ascending for 'asc') and assigns positions 1..n."""
+    """Sorts by score_key (descending for 'desc', ascending for 'asc'), assigns
+    positions 1..n, and attaches each product's listing_date (from Offer) -
+    None if the product currently has no offer with stock > 0."""
     reverse = order_by == OrderDirection.desc
     ordered = sorted(items, key=lambda item: item[score_key], reverse=reverse)
     return [
@@ -107,6 +116,7 @@ def _rank(items: list[dict], score_key: str, order_by: OrderDirection) -> list[d
             "name": item["name"],
             "position": position,
             "score": round(item[score_key], 4),
+            "listing_date": reader.get_product_listing_date(item["product_id"]),
         }
         for position, item in enumerate(ordered, start=1)
     ]
@@ -139,8 +149,10 @@ def _get_growth_ranking(
     stats = reader.get_product_growth_stats(
         recent_days=GROWTH_WINDOW_DAYS, from_=date_from, to=date_to
     )
+
     with_comparison = [item for item in stats if item["growth_rate"] is not None]
     ranked = _rank(with_comparison, "growth_rate", order_by)
+
     new_products = [
         item for item in stats
         if item["growth_rate"] is None and item["recent_quantity"] > 0
@@ -154,8 +166,11 @@ def _get_growth_ranking(
                 "id": _to_product_id(item["product_id"]),
                 "name": item["name"],
                 "position": next_position,
-                "score": None,
-                "is_new": True,
+                "score": (
+                    "No sales in the previous period to compare against - "
+                    f"ranked by recent units sold instead ({item['recent_quantity']} units sold)."
+                ),
+                "listing_date": reader.get_product_listing_date(item["product_id"]),
             }
         )
         next_position += 1
@@ -166,7 +181,6 @@ def _get_growth_ranking(
 def _get_rating_ranking(
     date_from: str | None, date_to: str | None, order_by: OrderDirection
 ) -> list[dict]:
-    # rating does not support date filtering - date_from/date_to params are ignored
     stats = reader.get_product_rating_stats(min_votes=RATING_MIN_VOTES)
     return _rank(stats, "weighted_rating", order_by)
 
@@ -268,9 +282,13 @@ def products_list(
         to.isoformat() if to else None,
         order_by,
     )
+    products = products[:limit]
+    for product in products:
+        product["score"] = _format_score(product["score"])
+
     return {
         "type": type,
-        "products": products[:limit],
+        "products": products,
     }
 
 
@@ -298,6 +316,8 @@ def products_summary(
     total_products = len(ranking)
     total_score = round(sum(p["score"] for p in ranking), 2)
     top_products = ranking[:top]
+    for product in top_products:
+        product["score"] = _format_score(product["score"])
 
     return {
         "total_products": total_products,
