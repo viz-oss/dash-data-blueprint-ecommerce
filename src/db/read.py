@@ -56,7 +56,7 @@ class DatabaseReader:
         with self.connect() as db:
             cur = db.execute(
                 """
-                SELECT product_id, name, rrp, cost, review_avg, review_count
+                SELECT product_id, ean, name, rrp, cost, review_avg, review_count
                 FROM Products
                 """
             )
@@ -64,11 +64,12 @@ class DatabaseReader:
             return [
                 {
                     "product_id": row[0],
-                    "name": row[1],
-                    "rrp": row[2],
-                    "cost": row[3],
-                    "review_avg": row[4],
-                    "review_count": row[5],
+                    "ean": row[1],
+                    "name": row[2],
+                    "rrp": row[3],
+                    "cost": row[4],
+                    "review_avg": row[5],
+                    "review_count": row[6],
                 }
                 for row in rows
             ]
@@ -233,13 +234,6 @@ class DatabaseReader:
         from_: str | None = None,
         to: str | None = None,
     ) -> list[dict]:
-        """Sum of units sold, revenue and margin per product (real sales only,
-        i.e. orders that do NOT have a status from EXCLUDED_SALE_STATUSES).
-
-        `from_` / `to` (format 'YYYY-MM-DD') restrict the range to orders
-        placed within that interval (both bounds inclusive). Either bound can
-        be omitted independently.
-        """
         excluded = self.EXCLUDED_SALE_STATUSES
         placeholders = ",".join("?" * len(excluded))
 
@@ -353,7 +347,7 @@ class DatabaseReader:
                 }
             )
         return result
-    
+
     def get_product_listing_date(self, product_id: int) -> str | None:
         with self.connect() as db:
             cur = db.execute(
@@ -397,12 +391,12 @@ class DatabaseReader:
                 }
             )
         return result
-    
+
     def get_product_by_id(self, product_id: int) -> dict | None:
         with self.connect() as db:
             cur = db.execute(
                 """
-                SELECT product_id, name, rrp, cost, review_avg, review_count
+                SELECT product_id, ean, name, rrp, cost, review_avg, review_count
                 FROM Products
                 WHERE product_id = ?
                 """,
@@ -413,11 +407,12 @@ class DatabaseReader:
             return None
         return {
             "product_id": row[0],
-            "name": row[1],
-            "rrp": float(row[2]) if row[2] is not None else 0.0,
-            "cost": float(row[3]) if row[3] is not None else 0.0,
-            "review_avg": float(row[4]) if row[4] is not None else 0.0,
-            "review_count": int(row[5]) if row[5] is not None else 0,
+            "ean": row[1],
+            "name": row[2],
+            "rrp": float(row[3]) if row[3] is not None else 0.0,
+            "cost": float(row[4]) if row[4] is not None else 0.0,
+            "review_avg": float(row[5]) if row[5] is not None else 0.0,
+            "review_count": int(row[6]) if row[6] is not None else 0,
         }
 
     def get_product_stock(self, product_id: int) -> int:
@@ -430,9 +425,6 @@ class DatabaseReader:
         return total or 0
 
     def get_product_return_rate(self, product_id: int) -> float:
-        """Share of this product's order lines that ended up in a
-        return-related status (RETURN_STATUSES), out of all order lines
-        ever placed for this product (any status)."""
         with self.connect() as db:
             cur = db.execute(
                 """

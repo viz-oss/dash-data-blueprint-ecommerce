@@ -51,6 +51,7 @@ class Rankings(BaseModel):
 
 class ProductDetail(BaseModel):
     id: str
+    ean: Optional[str] = None
     name: str
     price: str
     cost: str
@@ -187,6 +188,7 @@ def products_detail(id: str = Query(..., description="Product id, e.g. 123")):
 
     return {
         "id": str_id,
+        "ean": product["ean"],
         "name": product["name"],
         "price": f"{float(product['rrp']):.2f}",
         "cost": f"{float(product['cost']):.2f}",

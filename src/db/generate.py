@@ -336,9 +336,6 @@ def seed_orders_with_details(
         if update_earliest > update_latest:
             update_earliest = update_latest
         update_date = random_datetime_between(update_earliest, update_latest)
-
-        # Kraj dostawy, a za nim spójny lokalnie faker (adres/telefon/imię
-        # muszą pasować do kraju, nie mogą zostać "brytyjskie" dla PL/DE itd.)
         delivery_country_code = random.choices(
             list(COUNTRY_WEIGHTS.keys()), weights=list(COUNTRY_WEIGHTS.values()), k=1
         )[0]

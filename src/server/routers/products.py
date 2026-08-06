@@ -30,13 +30,8 @@ GROWTH_WINDOW_DAYS = 30
 RATING_MIN_VOTES = 20
 NEUTRAL_GROWTH_RATE = 1.0
 
-DATE_FROM_DESCRIPTION = (
-    "Start date of the range (YYYY-MM-DD)."
-)
-
-DATE_TO_DESCRIPTION = (
-    "End date of the range (YYYY-MM-DD)."
-)
+DATE_FROM_DESCRIPTION = "Start date of the range (YYYY-MM-DD)."
+DATE_TO_DESCRIPTION = "End date of the range (YYYY-MM-DD)."
 
 
 class RankingType(str, Enum):
@@ -55,6 +50,7 @@ class OrderDirection(str, Enum):
 
 class Product(BaseModel):
     id: str
+    ean: Optional[str] = None
     name: str
     position: int
     score: Optional[float] = None
@@ -82,8 +78,10 @@ class ValidationErrorItem(BaseModel):
 class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
 
+
 def _to_product_id(product_id: int) -> str:
     return str(product_id)
+
 
 def _build_endpoint_description() -> str:
     lines = ["Available types (`type`):", ""]
@@ -96,15 +94,22 @@ def _validate_date_range(date_from: date | None, date_to: date | None) -> None:
         raise HTTPException(status_code=422, detail="from must be <= to")
 
 
-def _rank(items: list[dict], score_key: str, order_by: OrderDirection) -> list[dict]:
-    """Sorts by score_key (descending for 'desc', ascending for 'asc'), assigns
-    positions 1..n, and attaches each product's listing_date (from Offer) -
-    None if the product currently has no offer with stock > 0."""
+def _get_ean_map() -> dict[int, str | None]:
+    return {p["product_id"]: p["ean"] for p in reader.get_products()}
+
+
+def _rank(
+    items: list[dict],
+    score_key: str,
+    order_by: OrderDirection,
+    ean_map: dict[int, str | None],
+) -> list[dict]:
     reverse = order_by == OrderDirection.desc
     ordered = sorted(items, key=lambda item: item[score_key], reverse=reverse)
     return [
         {
             "id": _to_product_id(item["product_id"]),
+            "ean": ean_map.get(item["product_id"]),
             "name": item["name"],
             "position": position,
             "score": round(item[score_key], 4),
@@ -119,21 +124,21 @@ def _get_sales_ranking(
     date_from: str | None, date_to: str | None, order_by: OrderDirection
 ) -> list[dict]:
     stats = reader.get_product_sales_stats(from_=date_from, to=date_to)
-    return _rank(stats, "total_quantity", order_by)
+    return _rank(stats, "total_quantity", order_by, _get_ean_map())
 
 
 def _get_revenue_ranking(
     date_from: str | None, date_to: str | None, order_by: OrderDirection
 ) -> list[dict]:
     stats = reader.get_product_sales_stats(from_=date_from, to=date_to)
-    return _rank(stats, "total_revenue", order_by)
+    return _rank(stats, "total_revenue", order_by, _get_ean_map())
 
 
 def _get_margin_ranking(
     date_from: str | None, date_to: str | None, order_by: OrderDirection
 ) -> list[dict]:
     stats = reader.get_product_sales_stats(from_=date_from, to=date_to)
-    return _rank(stats, "total_margin", order_by)
+    return _rank(stats, "total_margin", order_by, _get_ean_map())
 
 
 def _get_growth_ranking(
@@ -142,9 +147,10 @@ def _get_growth_ranking(
     stats = reader.get_product_growth_stats(
         recent_days=GROWTH_WINDOW_DAYS, from_=date_from, to=date_to
     )
+    ean_map = _get_ean_map()
 
     with_comparison = [item for item in stats if item["growth_rate"] is not None]
-    ranked = _rank(with_comparison, "growth_rate", order_by)
+    ranked = _rank(with_comparison, "growth_rate", order_by, ean_map)
 
     new_products = [
         item for item in stats
@@ -157,6 +163,7 @@ def _get_growth_ranking(
         ranked.append(
             {
                 "id": _to_product_id(item["product_id"]),
+                "ean": ean_map.get(item["product_id"]),
                 "name": item["name"],
                 "position": next_position,
                 "score": None,
@@ -176,11 +183,10 @@ def _get_rating_ranking(
     date_from: str | None, date_to: str | None, order_by: OrderDirection
 ) -> list[dict]:
     stats = reader.get_product_rating_stats(min_votes=RATING_MIN_VOTES)
-    return _rank(stats, "weighted_rating", order_by)
+    return _rank(stats, "weighted_rating", order_by, _get_ean_map())
 
 
 def _normalize(values: dict[int, float]) -> dict[int, float]:
-    """Min-max normalization to a 0-100 range."""
     if not values:
         return {}
     vmin, vmax = min(values.values()), max(values.values())
@@ -235,7 +241,7 @@ def _get_scoring_ranking(
         )
         scored.append({"product_id": pid, "name": names.get(pid, "Unknown"), "score": total_score})
 
-    return _rank(scored, "score", order_by)
+    return _rank(scored, "score", order_by, _get_ean_map())
 
 
 RANKING_BUILDERS = {
