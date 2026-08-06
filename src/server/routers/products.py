@@ -82,15 +82,13 @@ class ValidationErrorItem(BaseModel):
 class ValidationErrorResponse(BaseModel):
     detail: List[ValidationErrorItem]
 
+def _to_product_id(product_id: int) -> str:
+    return str(product_id)
 
 def _build_endpoint_description() -> str:
     lines = ["Available types (`type`):", ""]
     lines += [f"- **{key}** - {desc}" for key, desc in DESCRIPTIONS.items()]
     return "\n".join(lines)
-
-
-def _to_product_id(product_id: int) -> str:
-    return f"prod_{product_id}"
 
 
 def _validate_date_range(date_from: date | None, date_to: date | None) -> None:

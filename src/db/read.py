@@ -287,26 +287,6 @@ class DatabaseReader:
         from_: str | None = None,
         to: str | None = None,
     ) -> list[dict]:
-        """Compares sales in the 'recent' window against the 'previous' window
-        (same length, immediately preceding 'recent').
-
-        The 'recent' window is anchored on whatever `from_`/`to` are given:
-        - both given: recent = [from_, to]
-        - only `from_` given: recent = [from_, today]
-        - only `to` given: recent = [to - recent_days, to]
-        - neither given: recent = [today - recent_days, today] (old default)
-
-        The 'previous' window is always the same length, immediately before
-        the recent window's start.
-
-        `growth_rate` is a MULTIPLIER, not a percentage delta:
-        - previous_quantity=10, recent_quantity=40 -> growth_rate=4.0 ("x4")
-        - previous_quantity=10, recent_quantity=10 -> growth_rate=1.0 (no change)
-        - previous_quantity=10, recent_quantity=0  -> growth_rate=0.0 (dropped to zero)
-        - previous_quantity=0 (no baseline at all) -> growth_rate=None
-          (there's nothing to compare against, regardless of recent_quantity,
-          so we don't invent a number - callers must handle None explicitly)
-        """
         if to:
             d_to = datetime.strptime(to, "%Y-%m-%d")
         else:
@@ -315,10 +295,8 @@ class DatabaseReader:
         if from_:
             d_from = datetime.strptime(from_, "%Y-%m-%d")
         elif to:
-            # only `to` given -> look back recent_days from it
             d_from = d_to - timedelta(days=recent_days)
         else:
-            # neither given -> old default behaviour, last recent_days from now
             d_from = d_to - timedelta(days=recent_days)
 
         recent_start = d_from.strftime("%Y-%m-%d")

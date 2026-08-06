@@ -65,10 +65,8 @@ class ProductDetail(BaseModel):
     recommendations: List[str]
 
 def _parse_product_id(raw_id: str) -> int:
-    if not raw_id.startswith("prod_"):
-        raise HTTPException(status_code=404, detail=f"Product '{raw_id}' not found")
     try:
-        return int(raw_id.removeprefix("prod_"))
+        return int(raw_id)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Product '{raw_id}' not found")
 
@@ -144,9 +142,10 @@ def _build_recommendations(
     operation_id="products_detail",
     summary="Product Details",
     response_model=ProductDetail,
+    response_model_exclude_none=True,
     responses={404: {"description": "Product not found"}},
 )
-def products_detail(id: str = Query(..., description="Product id, e.g. prod_123")):
+def products_detail(id: str = Query(..., description="Product id, e.g. 123")):
     product_id = _parse_product_id(id)
     product = reader.get_product_by_id(product_id)
     if product is None:
