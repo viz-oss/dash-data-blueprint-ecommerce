@@ -19,8 +19,7 @@ reader = DatabaseReader()
 
 class RankingPosition(BaseModel):
     position: int
-    value: Optional[float] = None
-    listing_date: Optional[str] = None
+    score: Optional[float] = None
 
 
 def _find_position(ranking: list[dict], product_str_id: str) -> RankingPosition:
@@ -28,10 +27,9 @@ def _find_position(ranking: list[dict], product_str_id: str) -> RankingPosition:
         if item["id"] == product_str_id:
             return RankingPosition(
                 position=item["position"],
-                value=item.get("score"),
-                listing_date=item.get("listing_date"),
+                score=item.get("score"),
             )
-    return RankingPosition(position=len(ranking) + 1, value=None, listing_date=None)
+    return RankingPosition(position=len(ranking) + 1, score=None)
 
 
 class SalesSummary(BaseModel):
@@ -51,22 +49,20 @@ class Rankings(BaseModel):
     growth: RankingPosition
     rating: RankingPosition
 
-
 class ProductDetail(BaseModel):
     id: str
     name: str
     price: str
     cost: str
     stock: int
-    listing_date: Optional[str] = None
     image_url: str
+    listing_date: Optional[str] = None
     overall_score: float
     rankings: Rankings
     sales_summary: SalesSummary
     reviews: Reviews
     return_rate: float
     recommendations: List[str]
-
 
 def _parse_product_id(raw_id: str) -> int:
     if not raw_id.startswith("prod_"):
@@ -76,12 +72,6 @@ def _parse_product_id(raw_id: str) -> int:
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Product '{raw_id}' not found")
 
-
-def _find_position(ranking: list[dict], product_str_id: str) -> RankingPosition:
-    for item in ranking:
-        if item["id"] == product_str_id:
-            return RankingPosition(position=item["position"], value=item.get("score"))
-    return RankingPosition(position=len(ranking) + 1, value=None)
 
 HIGH_RETURN_RATE_THRESHOLD = 0.25
 LOW_STOCK_TO_SALES_RATIO = 0.75 
@@ -202,8 +192,8 @@ def products_detail(id: str = Query(..., description="Product id, e.g. prod_123"
         "price": f"{float(product['rrp']):.2f}",
         "cost": f"{float(product['cost']):.2f}",
         "stock": stock,
-        "listing_date": reader.get_product_listing_date(product_id),
         "image_url": f"https://example.com/images/{str_id}.jpg",
+        "listing_date": reader.get_product_listing_date(product_id),
         "overall_score": overall_score,
         "rankings": {
             "sales": _find_position(sales_ranking, str_id),
