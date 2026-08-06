@@ -219,7 +219,7 @@ def random_datetime_between(start: datetime, end: datetime) -> str:
     """Returns a random timestamp (as a string) between start and end in SQLite format."""
     delta = end - start
     random_seconds = random.randint(0, max(int(delta.total_seconds()), 0))
-    return (start + timedelta(seconds=random_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+    return (start + timedelta(seconds=random_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def seed_customers(cursor, n: int) -> list[int]:
@@ -330,7 +330,7 @@ def seed_orders_with_details(
         order_date_dt = now - timedelta(
             days=days_ago, seconds=random.randint(0, 86400)
         )
-        order_date = order_date_dt.strftime("%Y-%m-%d %H:%M:%S")
+        order_date = order_date_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         update_earliest = order_date_dt + timedelta(days=min_days)
         update_latest = min(order_date_dt + timedelta(days=max_days), now)
         if update_earliest > update_latest:
