@@ -84,11 +84,9 @@ CATEGORY_COST_RANGES = {
     "Cosmetic": (3, 70),
 }
 
-# Kurierzy dopuszczeni przez CHECK w tabeli Orders, z wagami popularności (PL rynek)
 COURIERS = ["InPost", "DHL", "DPD", "GLS", "Pocztex", "UPS", "FedEx", "Orlen Paczka"]
 COURIER_WEIGHTS = [30, 20, 15, 10, 10, 5, 5, 5]
 
-# Koszt dostawy zależny (z grubsza) od kuriera; realistyczne widełki PLN
 COURIER_COST_RANGES = {
     "InPost": (0, 16),
     "DHL": (10, 25),
@@ -170,6 +168,46 @@ ORDER_STATUSES: list[OrderStatus] = [
     "cancelled_end",
     "buyer_canceled_end",
 ]
+
+RETURN_FLOW_STATUSES: set[OrderStatus] = {
+    "return_requested",
+    "return_accepted",
+    "return_rejected",
+    "returned",
+    "refunded_end",
+    "exchanged_end",
+}
+
+ReturnReason = Literal[
+    "not_as_described",
+    "wrong_size",
+    "wrong_item_sent",
+    "damaged_product",
+    "defective_product",
+    "quality_issue",
+    "changed_mind",
+    "better_price_found",
+    "arrived_late",
+    "no_longer_needed",
+    "duplicate_order",
+    "other",
+]
+
+RETURN_REASONS: list[ReturnReason] = [
+    "not_as_described",
+    "wrong_size",
+    "wrong_item_sent",
+    "damaged_product",
+    "defective_product",
+    "quality_issue",
+    "changed_mind",
+    "better_price_found",
+    "arrived_late",
+    "no_longer_needed",
+    "duplicate_order",
+    "other",
+]
+RETURN_REASON_WEIGHTS = [22, 15, 8, 12, 8, 8, 12, 4, 3, 4, 2, 2]
 
 STATUS_UPDATE_DAY_RANGES: dict[OrderStatus, tuple[int, int]] = {
     "pending": (0, 1),
@@ -310,6 +348,14 @@ def seed_offer(cursor, product_ids: list[int], coverage: float) -> list[int]:
     return offered_ids
 
 
+def generate_return_reason(status: OrderStatus) -> ReturnReason | None:
+    """None dopóki zamówienie nie weszło w ścieżkę zwrotu; dla każdego statusu
+    z RETURN_FLOW_STATUSES zawsze zwraca konkretny powód."""
+    if status not in RETURN_FLOW_STATUSES:
+        return None
+    return random.choices(RETURN_REASONS, weights=RETURN_REASON_WEIGHTS, k=1)[0]
+
+
 def seed_orders_with_details(
     cursor,
     customer_ids: list[int],
@@ -323,6 +369,7 @@ def seed_orders_with_details(
     for _ in range(n_orders):
         customer_id = random.choice(customer_ids)
         status = random.choice(ORDER_STATUSES)
+        return_reason = generate_return_reason(status)
         min_days, max_days = STATUS_UPDATE_DAY_RANGES[status]
 
         oldest_possible = 365
@@ -368,16 +415,17 @@ def seed_orders_with_details(
         cursor.execute(
             """
             INSERT INTO Orders (
-                customer_id, order_status, order_date, update_date, invoice,
+                customer_id, order_status, return_reason, order_date, update_date, invoice,
                 delivery_first_name, delivery_last_name, delivery_phone, delivery_country_code,
                 delivery_city, delivery_street, delivery_postal_code,
                 courier, delivery_cost, order_total
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 customer_id,
                 status,
+                return_reason,
                 order_date,
                 update_date,
                 invoice,

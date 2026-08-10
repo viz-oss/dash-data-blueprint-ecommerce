@@ -64,11 +64,24 @@ def create_database() -> None:
                     'cancelled_end',
                     'buyer_canceled_end'
                 )),
+            return_reason TEXT
+                CHECK (return_reason IN (
+                    'not_as_described',
+                    'wrong_size',
+                    'wrong_item_sent',
+                    'damaged_product',
+                    'defective_product',
+                    'quality_issue',
+                    'changed_mind',
+                    'better_price_found',
+                    'arrived_late',
+                    'no_longer_needed',
+                    'duplicate_order',
+                    'other'
+                )),
             order_date TEXT NOT NULL DEFAULT (datetime('now')),
             update_date TEXT NOT NULL DEFAULT (datetime('now')),
             invoice INTEGER NOT NULL DEFAULT 0 CHECK (invoice IN (0, 1)),
-            -- gdy invoice = 1 (faktura na firmę): first_name = nazwa firmy, last_name = NIP
-            -- gdy invoice = 0 (paragon / os. prywatna): zwykłe imię i nazwisko odbiorcy
             delivery_first_name TEXT,
             delivery_last_name TEXT,
             delivery_phone TEXT,
