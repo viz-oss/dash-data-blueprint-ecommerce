@@ -9,7 +9,7 @@ from ...db.generate import ReturnReason, RETURN_REASONS
 router = APIRouter()
 db = DatabaseReader()
 
-RETURNS_HANDLING_COST_PER_UNIT = 12.50  # placeholder — brak realnej kolumny kosztu obsługi zwrotu w bazie
+RETURNS_HANDLING_COST_PER_UNIT = 12.50 
 
 
 class ProductReturnStat(BaseModel):
@@ -33,22 +33,22 @@ class CommonIssue(BaseModel):
 
 
 class ReturnsListResponse(BaseModel):
-    date_from: Optional[date_type] = None
-    date_to: Optional[date_type] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
     top_by_return_count: List[ProductReturnStat]
     top_by_return_rate: List[ProductReturnStat]
     return_reasons: List[ReturnReasonBreakdown]
 
 class ReturnsSummary(BaseModel):
-    date_from: Optional[date_type] = None
-    date_to: Optional[date_type] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
 
     total_returns: int
     return_rate_pct: float
     total_returned_value: str
     returns_handling_cost: str
-    recommendations: List[str]
 
+    recommendations: List[str]
 
 class ValidationErrorItem(BaseModel):
     loc: List[Any]
@@ -129,8 +129,8 @@ def returns_list(
             reverse=True,
         )
     return {
-        "date_from": date_from,
-        "date_to": date_to,
+        "date_from": f"{date_from.isoformat()}Z" if date_from else None,
+        "date_to": f"{date_to.isoformat()}Z" if date_to else None,
         "top_by_return_count": top_by_return_count,
         "top_by_return_rate": top_by_return_rate,
         "return_reasons": return_reasons,
@@ -165,8 +165,8 @@ def returns_summary(
     )
 
     return {
-        "date_from": date_from,
-        "date_to": date_to,
+        "date_from": f"{date_from.isoformat()}Z" if date_from else None,
+        "date_to": f"{date_to.isoformat()}Z" if date_to else None,
         "total_returns": totals["total_returns"],
         "return_rate_pct": return_rate_pct,
         "total_returned_value": f"{totals['total_returned_value']:.2f}",
