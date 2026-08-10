@@ -1,7 +1,6 @@
 import sqlite3, json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-
 class DatabaseReader:
     EXCLUDED_SALE_STATUSES = (
         "pending",
@@ -25,7 +24,142 @@ class DatabaseReader:
         "return_requested",
         "refunded_end",
     )
+    
+    def get_product_return_rate(self, product_id: int) -> float:
+        with self.connect() as db:
+            cur = db.execute(
+                """
+                SELECT COUNT(*)
+                FROM Order_Details od
+                WHERE od.product_id = ?
+                """,
+                (product_id,),
+            )
+            total = cur.fetchone()[0] or 0
+            if total == 0:
+                return 0.0
 
+            placeholders = ",".join("?" * len(self.RETURN_STATUSES))
+            cur = db.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM Order_Details od
+                JOIN Orders o ON o.order_id = od.order_id
+                WHERE od.product_id = ? AND o.order_status IN ({placeholders})
+                """,
+                (product_id, *self.RETURN_STATUSES),
+            )
+            returned = cur.fetchone()[0] or 0
+
+        return round(returned / total, 4)
+
+    def _date_filter(self, query: str, params: list, date_from: str | None, date_to: str | None) -> str:
+        if date_from:
+            query += " AND date(o.order_date) >= date(?)"
+            params.append(date_from)
+        if date_to:
+            query += " AND date(o.order_date) <= date(?)"
+            params.append(date_to)
+        return query
+
+    def get_return_stats_by_product(
+        self,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[dict]:
+        placeholders = ",".join("?" * len(self.RETURN_STATUSES))
+
+        query = f"""
+            SELECT
+                od.product_id,
+                p.name,
+                COUNT(*) AS orders_count,
+                SUM(CASE WHEN o.order_status IN ({placeholders}) THEN 1 ELSE 0 END) AS returns_count,
+                SUM(CASE WHEN o.order_status IN ({placeholders})
+                         THEN od.quantity * od.selling_price ELSE 0 END) AS value_returned
+            FROM Order_Details od
+            JOIN Orders o ON o.order_id = od.order_id
+            JOIN Products p ON p.product_id = od.product_id
+            WHERE 1=1
+        """
+        params: list = [*self.RETURN_STATUSES, *self.RETURN_STATUSES]
+        query = self._date_filter(query, params, date_from, date_to)
+        query += " GROUP BY od.product_id, p.name"
+
+        with self.connect() as db:
+            cur = db.execute(query, params)
+            rows = cur.fetchall()
+
+        return [
+            {
+                "product_id": row[0],
+                "name": row[1],
+                "orders_count": row[2] or 0,
+                "returns_count": row[3] or 0,
+                "value_returned": float(row[4] or 0.0),
+            }
+            for row in rows
+        ]
+
+    def get_return_reason_counts_by_product(self, product_id: int) -> dict[str, int]:
+        query = """
+            SELECT o.return_reason, COUNT(*)
+            FROM Order_Details od
+            JOIN Orders o ON o.order_id = od.order_id
+            WHERE od.product_id = ? AND o.return_reason IS NOT NULL
+            GROUP BY o.return_reason
+        """
+        with self.connect() as db:
+            cur = db.execute(query, (product_id,))
+            return {reason: count for reason, count in cur.fetchall()}
+        
+    def get_return_reason_counts(
+        self,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict[str, int]:
+        query = """
+            SELECT o.return_reason, COUNT(*)
+            FROM Orders o
+            WHERE o.return_reason IS NOT NULL
+        """
+        params: list = []
+        query = self._date_filter(query, params, date_from, date_to)
+        query += " GROUP BY o.return_reason"
+
+        with self.connect() as db:
+            cur = db.execute(query, params)
+            return {reason: count for reason, count in cur.fetchall()}
+
+    def get_returns_totals(
+        self,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict:
+        placeholders = ",".join("?" * len(self.RETURN_STATUSES))
+
+        orders_query = "SELECT COUNT(*) FROM Orders o WHERE 1=1"
+        orders_params: list = []
+        orders_query = self._date_filter(orders_query, orders_params, date_from, date_to)
+
+        returns_query = f"""
+            SELECT COUNT(*), SUM(CAST(o.order_total AS REAL))
+            FROM Orders o
+            WHERE o.order_status IN ({placeholders})
+        """
+        returns_params: list = list(self.RETURN_STATUSES)
+        returns_query = self._date_filter(returns_query, returns_params, date_from, date_to)
+
+        with self.connect() as db:
+            total_orders = db.execute(orders_query, orders_params).fetchone()[0] or 0
+            total_returns, total_returned_value = db.execute(returns_query, returns_params).fetchone()
+
+        return {
+            "total_orders": total_orders,
+            "total_returns": total_returns or 0,
+            "total_returned_value": float(total_returned_value or 0.0),
+        }
+    
     def __init__(self, db_path: str = "db.sqlite") -> None:
         self.db_path = db_path
 
@@ -423,34 +557,6 @@ class DatabaseReader:
             )
             total = cur.fetchone()[0]
         return total or 0
-
-    def get_product_return_rate(self, product_id: int) -> float:
-        with self.connect() as db:
-            cur = db.execute(
-                """
-                SELECT COUNT(*)
-                FROM Order_Details od
-                WHERE od.product_id = ?
-                """,
-                (product_id,),
-            )
-            total = cur.fetchone()[0] or 0
-            if total == 0:
-                return 0.0
-
-            placeholders = ",".join("?" * len(self.RETURN_STATUSES))
-            cur = db.execute(
-                f"""
-                SELECT COUNT(*)
-                FROM Order_Details od
-                JOIN Orders o ON o.order_id = od.order_id
-                WHERE od.product_id = ? AND o.order_status IN ({placeholders})
-                """,
-                (product_id, *self.RETURN_STATUSES),
-            )
-            returned = cur.fetchone()[0] or 0
-
-        return round(returned / total, 4)
 
 
 if __name__ == "__main__":

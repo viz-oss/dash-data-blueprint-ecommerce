@@ -2,6 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from ...db.generate import ReturnReason, RETURN_REASONS
 from ...db.read import DatabaseReader
 from .products import (
     OrderDirection,
@@ -49,6 +50,10 @@ class Rankings(BaseModel):
     growth: RankingPosition
     rating: RankingPosition
 
+class ReturnReasonCount(BaseModel):
+    reason: ReturnReason
+    count: int
+
 class ProductDetail(BaseModel):
     id: str
     ean: Optional[str] = None
@@ -63,6 +68,7 @@ class ProductDetail(BaseModel):
     sales_summary: SalesSummary
     reviews: Reviews
     return_rate: float
+    return_reasons: List[ReturnReasonCount]
     recommendations: List[str]
 
 def _parse_product_id(raw_id: str) -> int:
@@ -70,6 +76,7 @@ def _parse_product_id(raw_id: str) -> int:
         return int(raw_id)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Product '{raw_id}' not found")
+
 
 
 HIGH_RETURN_RATE_THRESHOLD = 0.25
@@ -175,7 +182,12 @@ def products_detail(id: str = Query(..., description="Product id, e.g. 123")):
 
     stock = reader.get_product_stock(product_id)
     return_rate = reader.get_product_return_rate(product_id)
-
+    reason_counts = reader.get_return_reason_counts_by_product(product_id)
+    return_reasons = sorted(
+        [{"reason": reason, "count": count} for reason, count in reason_counts.items()],
+        key=lambda r: r["count"],
+        reverse=True,
+    )
     overall_score_entry = next((p for p in scoring_ranking if p["id"] == str_id), None)
     overall_score = round(overall_score_entry["score"], 2) if overall_score_entry else 0.0
 
@@ -213,4 +225,5 @@ def products_detail(id: str = Query(..., description="Product id, e.g. 123")):
         },
         "return_rate": return_rate,
         "recommendations": recommendations,
+        "return_reasons": return_reasons,
     }
