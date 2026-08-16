@@ -148,6 +148,42 @@ class DatabaseReader:
             for row in rows
         ]
 
+    def get_customer_by_id(self, customer_id: int) -> dict | None:
+        with self.connect() as db:
+            cur = db.execute(
+                "SELECT customer_id, identifier, registration_date FROM Customers WHERE customer_id = ?",
+                (customer_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return {
+            "customer_id": row[0],
+            "identifier": row[1],
+            "registration_date": row[2],
+        }
+
+    def get_customer_orders(self, customer_id: int) -> list[dict]:
+        excluded = self.EXCLUDED_SALE_STATUSES
+        placeholders = ",".join("?" * len(excluded))
+        query = f"""
+            SELECT order_id, order_date, order_total
+            FROM Orders
+            WHERE customer_id = ? AND order_status NOT IN ({placeholders})
+            ORDER BY order_date DESC
+        """
+        with self.connect() as db:
+            cur = db.execute(query, [customer_id, *excluded])
+            rows = cur.fetchall()
+        return [
+            {
+                "order_id": row[0],
+                "order_date": row[1],
+                "order_total": float(row[2]),
+            }
+            for row in rows
+        ]
+ 
     def get_product_return_rate(self, product_id: int) -> float:
         with self.connect() as db:
             cur = db.execute(
@@ -680,6 +716,7 @@ class DatabaseReader:
             )
             total = cur.fetchone()[0]
         return total or 0
+    
 
 
 if __name__ == "__main__":
