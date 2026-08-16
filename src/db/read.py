@@ -1,6 +1,7 @@
 import sqlite3, json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+
 class DatabaseReader:
     EXCLUDED_SALE_STATUSES = (
         "pending",
@@ -24,7 +25,129 @@ class DatabaseReader:
         "return_requested",
         "refunded_end",
     )
-    
+
+    # Customers
+    def get_customer_kpis(self) -> dict:
+        excluded = self.EXCLUDED_SALE_STATUSES
+        placeholders = ",".join("?" * len(excluded))
+        with self.connect() as db:
+            total = db.execute("SELECT COUNT(*) FROM Customers").fetchone()[0]
+ 
+            new_this_month = db.execute(
+                f"""
+                SELECT COUNT(DISTINCT o.customer_id)
+                FROM Orders o
+                WHERE o.order_status NOT IN ({placeholders})
+                  AND date(o.order_date) >= date('now', 'start of month')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM Orders o2
+                      WHERE o2.customer_id = o.customer_id
+                        AND o2.order_status NOT IN ({placeholders})
+                        AND date(o2.order_date) < date('now', 'start of month')
+                  )
+                """,
+                list(excluded) * 2,
+            ).fetchone()[0]
+ 
+            valid_orders = db.execute(
+                f"SELECT COUNT(*) FROM Orders WHERE order_status NOT IN ({placeholders})",
+                excluded,
+            ).fetchone()[0]
+ 
+        return {
+            "total": total,
+            "new_this_month": new_this_month,
+            "avg_orders_per_customer": round(valid_orders / total, 2) if total else 0.0,
+        }
+ 
+    def get_top_customers(self, limit: int | None = 10) -> list[dict]:
+        excluded = self.EXCLUDED_SALE_STATUSES
+        placeholders = ",".join("?" * len(excluded))
+        query = f"""
+            SELECT c.customer_id, c.identifier,
+                   COUNT(o.order_id) AS orders_count,
+                   COALESCE(SUM(o.order_total), 0) AS total_spent,
+                   MAX(o.order_date) AS last_order_date
+            FROM Customers c
+            JOIN Orders o ON o.customer_id = c.customer_id
+            WHERE o.order_status NOT IN ({placeholders})
+            GROUP BY c.customer_id, c.identifier
+            ORDER BY total_spent DESC
+        """
+        params: list = list(excluded)
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+ 
+        with self.connect() as db:
+            cur = db.execute(query, params)
+            rows = cur.fetchall()
+ 
+        return [
+            {
+                "customer_id": row[0],
+                "identifier": row[1],
+                "orders_count": row[2],
+                "total_spent": float(row[3]),
+                "last_order_date": row[4],
+            }
+            for row in rows
+        ]
+ 
+    def get_customer_order_dates(self, customer_id: int) -> list[str]:
+        excluded = self.EXCLUDED_SALE_STATUSES
+        placeholders = ",".join("?" * len(excluded))
+        query = f"""
+            SELECT order_date FROM Orders
+            WHERE customer_id = ? AND order_status NOT IN ({placeholders})
+            ORDER BY order_date
+        """
+        with self.connect() as db:
+            cur = db.execute(query, [customer_id, *excluded])
+            return [row[0] for row in cur.fetchall()]
+ 
+    def get_customer_all_order_dates(self, customer_id: int) -> list[str]:
+        query = "SELECT order_date FROM Orders WHERE customer_id = ? ORDER BY order_date"
+        with self.connect() as db:
+            cur = db.execute(query, (customer_id,))
+            return [row[0] for row in cur.fetchall()]
+ 
+    def get_new_customers(self, limit: int = 10) -> list[dict]:
+        excluded = self.EXCLUDED_SALE_STATUSES
+        placeholders = ",".join("?" * len(excluded))
+        query = f"""
+            SELECT c.customer_id, c.identifier,
+                   COUNT(o.order_id) AS orders_count,
+                   COALESCE(SUM(o.order_total), 0) AS total_spent
+            FROM Customers c
+            JOIN Orders o ON o.customer_id = c.customer_id
+            WHERE o.order_status NOT IN ({placeholders})
+              AND date(o.order_date) >= date('now', 'start of month')
+            GROUP BY c.customer_id, c.identifier
+            HAVING NOT EXISTS (
+                SELECT 1 FROM Orders o2
+                WHERE o2.customer_id = c.customer_id
+                  AND o2.order_status NOT IN ({placeholders})
+                  AND date(o2.order_date) < date('now', 'start of month')
+            )
+            ORDER BY total_spent DESC
+            LIMIT ?
+        """
+        params = list(excluded) + list(excluded) + [limit]
+        with self.connect() as db:
+            cur = db.execute(query, params)
+            rows = cur.fetchall()
+ 
+        return [
+            {
+                "customer_id": row[0],
+                "identifier": row[1],
+                "orders_count": row[2],
+                "total_spent": float(row[3]),
+            }
+            for row in rows
+        ]
+
     def get_product_return_rate(self, product_id: int) -> float:
         with self.connect() as db:
             cur = db.execute(
