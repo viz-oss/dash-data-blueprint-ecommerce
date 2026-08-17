@@ -9,8 +9,8 @@ from ...db.read import DatabaseReader
 router = APIRouter()
 reader = DatabaseReader()
 
-TOP_SEGMENT_LIMIT = 10
-NEW_SEGMENT_LIMIT = 10
+TOP_TYPE_LIMIT = 10
+NEW_TYPE_LIMIT = 10
 
 WIN_BACK_INACTIVE_DAYS = 100        
 BIG_INFREQUENT_MAX_ORDERS = 2        
@@ -18,7 +18,7 @@ BIG_INFREQUENT_VALUE_MULTIPLIER = 1.5
 VIP_MIN_ORDERS = 3              
 VIP_MIN_TOTAL_SPENT = 40000         
 
-class SegmentEnum(str, Enum):
+class TypeEnum(str, Enum):
     new = "new"
     top = "top"
 
@@ -37,7 +37,7 @@ class Kpis(BaseModel):
 
 class CustomersListResponse(BaseModel):
     kpis: Kpis
-    segment: SegmentEnum
+    type: TypeEnum
     customers: List[CustomerSummary]
     recommendations: List[str]
 
@@ -71,7 +71,7 @@ def build_customer_metrics(c: dict) -> dict:
 
 def build_top_customers() -> list[dict]:
     """Lista do wyświetlenia na stronie - tylko top N wg total_spent."""
-    top = reader.get_top_customers(limit=TOP_SEGMENT_LIMIT)
+    top = reader.get_top_customers(limit=TOP_TYPE_LIMIT)
     return [build_customer_metrics(c) for c in top]
 
 
@@ -81,7 +81,7 @@ def build_recommendation_candidates() -> list[dict]:
 
 
 def build_new_customers() -> list[dict]:
-    new = reader.get_new_customers(limit=NEW_SEGMENT_LIMIT)
+    new = reader.get_new_customers(limit=NEW_TYPE_LIMIT)
     customers = []
     for c in new:
         all_order_dates = reader.get_customer_all_order_dates(c["customer_id"])
@@ -97,11 +97,11 @@ def build_new_customers() -> list[dict]:
     return customers
 
 
-def build_recommendations(segment: SegmentEnum, customers: list[dict]) -> list[str]:
+def build_recommendations(type: TypeEnum, customers: list[dict]) -> list[str]:
     if not customers:
         return []
 
-    if segment == SegmentEnum.new:
+    if type == TypeEnum.new:
         return [
             f"Send a welcome email with a discount code to your {len(customers)} new customers "
             "from this month to encourage a second purchase."
@@ -164,11 +164,11 @@ def build_recommendations(segment: SegmentEnum, customers: list[dict]) -> list[s
     response_model=CustomersListResponse,
     responses={422: {"description": "Validation Error", "model": ValidationErrorResponse}},
 )
-def customers_list(segment: SegmentEnum = Query(SegmentEnum.top)):
+def customers_list(type: TypeEnum = Query(TypeEnum.top)):
     kpis = reader.get_customer_kpis()
 
-    customers = build_top_customers() if segment == SegmentEnum.top else build_new_customers()
-    recommendation_pool = build_recommendation_candidates() if segment == SegmentEnum.top else customers
+    customers = build_top_customers() if type == TypeEnum.top else build_new_customers()
+    recommendation_pool = build_recommendation_candidates() if type == TypeEnum.top else customers
 
     enriched = [
         {
@@ -183,12 +183,12 @@ def customers_list(segment: SegmentEnum = Query(SegmentEnum.top)):
         }
         for c in customers
     ]
-    if segment == SegmentEnum.top:
+    if type == TypeEnum.top:
         enriched.sort(key=lambda c: float(c["total_spent"]), reverse=True)
 
     return {
         "kpis": kpis,
-        "segment": segment,
+        "type": type,
         "customers": enriched,
-        "recommendations": build_recommendations(segment, recommendation_pool),
+        "recommendations": build_recommendations(type, recommendation_pool),
     }
